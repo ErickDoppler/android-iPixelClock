@@ -208,7 +208,7 @@
 
   var NUMBERS = ['dutyShowSeconds', 'hideSeconds', 'port'];
 
-  var COLORS = ['colorPrimary', 'colorSecondary'];
+  var COLORS = ['colorPrimary', 'colorSecondary', 'backgroundColor', 'backgroundColor2'];
 
   var TEXTS = ['cityName'];
 

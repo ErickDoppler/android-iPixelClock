@@ -226,6 +226,20 @@
         <select id="background"></select>
       </div>
       <div class="row">
+        <label for="backgroundColor">Colour</label>
+        <input type="color" id="backgroundColor">
+      </div>
+      <div class="row">
+        <label for="backgroundColor2">Second colour</label>
+        <input type="color" id="backgroundColor2">
+      </div>
+      <p class="hint">The background keeps its own pair of colours, separate from
+        the clock's &mdash; retuning the face should not repaint the wall behind
+        it. <b>Solid</b> uses the first; <b>Gradient</b>, <b>Scan bar</b>,
+        <b>Game of life</b> and <b>Circuit traces</b> use both. Effects with a
+        look of their own &mdash; fire, matrix rain, aurora &mdash; keep their
+        own palette and ignore these.</p>
+      <div class="row">
         <label for="backgroundSpeed">Speed</label>
         <input type="range" id="backgroundSpeed" min="0" max="100">
         <output id="backgroundSpeed-out" class="num">50</output>
@@ -235,9 +249,10 @@
         <input type="range" id="backgroundIntensity" min="0" max="100">
         <output id="backgroundIntensity-out" class="num">50</output>
       </div>
-      <p class="hint">More effects &mdash; matrix rain, starfields, waves, tunnels,
-        pipes, plasma &mdash; plus image, GIF and video backgrounds are coming in
-        the next build.</p>
+      <p class="hint">Intensity sets density and brightness. Everything here is
+        deliberately held below full brightness so the clock stays readable on
+        top of it.</p>
+      <p class="hint">Image, GIF and video backgrounds are the next build.</p>
     </div>
   </section>
 

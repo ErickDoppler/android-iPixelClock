@@ -1,5 +1,6 @@
 package com.example.ipixelclock.render
 
+import com.example.ipixelclock.bg.BackgroundEngine
 import com.example.ipixelclock.face.ClockFace
 import com.example.ipixelclock.face.ColorModes
 import com.example.ipixelclock.settings.Settings
@@ -129,16 +130,26 @@ class FrameRenderer {
 
     // ------------------------------------------------------------ the layers
 
+    private val background = BackgroundEngine()
+
     private fun drawBackground(
         canvas: PixelCanvas,
         settings: Settings,
         nowMs: Long,
         dtMs: Long
     ) {
-        // Phase 3: BackgroundEngine.current(settings).step(dtMs).draw(canvas)
-        if (settings.background == "solid") {
-            canvas.clear(settings.colorSecondary)
-        }
+        background.render(
+            canvas = canvas,
+            id = settings.background,
+            nowMs = nowMs,
+            dtMs = dtMs,
+            speed = settings.backgroundSpeed,
+            intensity = settings.backgroundIntensity,
+            // The background's own colours, not the face's — retuning the clock
+            // gradient must not repaint the wall behind it.
+            primary = settings.backgroundColor,
+            secondary = settings.backgroundColor2
+        )
     }
 
     private fun infoRowHeight(canvas: PixelCanvas, settings: Settings): Int {

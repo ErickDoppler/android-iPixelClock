@@ -1,6 +1,7 @@
 package com.example.ipixelclock.web
 
 import com.example.ipixelclock.face.ColorModes
+import com.example.ipixelclock.bg.Backgrounds
 import com.example.ipixelclock.font.PixelFonts
 import com.example.ipixelclock.fx.Transitions
 import com.example.ipixelclock.render.SimulatedPanel
@@ -56,7 +57,7 @@ object Schema {
         // Straight from the effect registry, so adding one in Kotlin puts it in
         // the picker with no HTML change.
         put("transitions", pairs(Transitions.options()))
-        put("backgrounds", pairs(BACKGROUNDS))
+        put("backgrounds", pairs(Backgrounds.options()))
         put("mediaMotions", pairs(MEDIA_MOTIONS))
         put("visibilities", pairs(VISIBILITIES))
         put("verticalStyles", pairs(VERTICAL_STYLES))
@@ -101,11 +102,6 @@ object Schema {
     val VERTICAL_STYLES: List<Pair<String, String>> = listOf(
         "pairs" to "Two digits a row (13 / 45)",
         "digits" to "One digit a row, with a divider"
-    )
-
-    val BACKGROUNDS: List<Pair<String, String>> = listOf(
-        "off" to "None (black)",
-        "solid" to "Solid colour"
     )
 
     val MEDIA_MOTIONS: List<Pair<String, String>> = listOf(

@@ -96,6 +96,18 @@ data class Settings(
 
     /** Background effect id; "off" leaves it black. */
     val background: String = "off",
+
+    /**
+     * The background's own colours, deliberately separate from the face's.
+     *
+     * Reusing [colorSecondary] meant retuning the clock's gradient silently
+     * repainted the wall behind it. [backgroundColor] is the solid fill and the
+     * gradient's start; [backgroundColor2] is the gradient's end. Effects with
+     * an identity of their own — fire, matrix rain — keep their own palette and
+     * ignore both.
+     */
+    val backgroundColor: Int = 0xFF101822.toInt(),
+    val backgroundColor2: Int = 0xFF2B0B3A.toInt(),
     /** Effect-specific knobs, kept opaque so effects can add their own. */
     val backgroundParams: Map<String, Any> = emptyMap(),
     val backgroundSpeed: Int = 50,
@@ -164,6 +176,8 @@ data class Settings(
         put("scheduleTo", scheduleTo)
 
         put("background", background)
+        put("backgroundColor", backgroundColor)
+        put("backgroundColor2", backgroundColor2)
         put("backgroundParams", JSONObject(backgroundParams))
         put("backgroundSpeed", backgroundSpeed)
         put("backgroundIntensity", backgroundIntensity)
@@ -224,6 +238,8 @@ data class Settings(
         scheduleTo = patch.optInt("scheduleTo", scheduleTo).coerceIn(0, 1439),
 
         background = patch.optString("background", background),
+        backgroundColor = optColor(patch, "backgroundColor", backgroundColor),
+        backgroundColor2 = optColor(patch, "backgroundColor2", backgroundColor2),
         backgroundParams = optParams(patch, backgroundParams),
         backgroundSpeed = patch.optInt("backgroundSpeed", backgroundSpeed).coerceIn(0, 100),
         backgroundIntensity = patch.optInt("backgroundIntensity", backgroundIntensity).coerceIn(0, 100),
