@@ -142,6 +142,41 @@ class PixelFont(
     }
 
     /**
+     * A copy with every pixel spread onto a coarser grid, one lit dot per
+     * source pixel and [pitch] - 1 blank rows and columns between.
+     *
+     * This is how the DOTMATRIX family is built: the shapes are a font that is
+     * already known to read well, and the visible pitch between the dots is the
+     * whole effect. Deriving it beats drawing it — there is no chance of the
+     * dotted 8 disagreeing with the solid one.
+     */
+    fun dotted(pitch: Int): PixelFont {
+        if (pitch <= 1) return this
+        val newHeight = (height - 1) * pitch + 1
+        if (newHeight > 32) return this
+        val out = HashMap<Char, IntArray>(glyphs.size)
+        for ((ch, cols) in glyphs) {
+            val wide = IntArray((cols.size - 1).coerceAtLeast(0) * pitch + 1)
+            for (c in cols.indices) {
+                var bits = 0
+                for (row in 0 until height) {
+                    if (cols[c] and (1 shl row) != 0) bits = bits or (1 shl (row * pitch))
+                }
+                wide[c * pitch] = bits
+            }
+            out[ch] = wide
+        }
+        return PixelFont(
+            id = "$id-dot$pitch",
+            height = newHeight,
+            spacing = spacing * pitch,
+            glyphs = out,
+            fallback = fallback,
+            monospaceDigits = monospaceDigits
+        )
+    }
+
+    /**
      * An integer-scaled copy. Nearest-neighbour by whole multiples only —
      * fractional scaling on a 7-row font produces broken stems, so the renderer
      * would rather pick a smaller authored size than a scaled ugly one.

@@ -73,6 +73,16 @@ data class Settings(
     val transition: String = "fade",
     val transitionMs: Int = 400,
 
+    /**
+     * How the time is arranged when the scene is taller than it is wide — a
+     * panel hung as a vertical banner.
+     *
+     * "pairs" stacks HH over MM, two digits to a row. "digits" gives every digit
+     * its own row with a divider between the groups, which on a 16-column banner
+     * lets each digit be twice the size.
+     */
+    val verticalStyle: String = "pairs",
+
     /** Visibility: always | duty | day | night | schedule. */
     val visibility: String = "always",
     /** For "duty": show the face for this long, then hide it for [hideSeconds]. */
@@ -146,6 +156,7 @@ data class Settings(
         put("colorSpeed", colorSpeed)
         put("transition", transition)
         put("transitionMs", transitionMs)
+        put("verticalStyle", verticalStyle)
         put("visibility", visibility)
         put("dutyShowSeconds", dutyShowSeconds)
         put("hideSeconds", hideSeconds)
@@ -205,6 +216,7 @@ data class Settings(
         colorSpeed = patch.optInt("colorSpeed", colorSpeed).coerceIn(0, 360),
         transition = patch.optString("transition", transition),
         transitionMs = patch.optInt("transitionMs", transitionMs).coerceIn(0, 5000),
+        verticalStyle = patch.optString("verticalStyle", verticalStyle),
         visibility = patch.optString("visibility", visibility),
         dutyShowSeconds = patch.optInt("dutyShowSeconds", dutyShowSeconds).coerceIn(1, 3600),
         hideSeconds = patch.optInt("hideSeconds", hideSeconds).coerceIn(0, 3600),

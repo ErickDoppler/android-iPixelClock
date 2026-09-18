@@ -66,9 +66,17 @@ class ClockService : Service(), Api {
     @Volatile
     private var labForcesFrameMode = false
 
-    /** Latest frame, kept for a newly-opened preview and `/api/preview.png`. */
-    @Volatile
-    private var lastFrame: PixelCanvas? = null
+    /**
+     * A *copy* of the latest frame, for `/api/preview.png`.
+     *
+     * Deliberately not a reference to the renderer's own canvas. That canvas is
+     * reused and redrawn in place, and this is read from a web-server thread at
+     * an arbitrary moment — which lands inside the window between `clear()` and
+     * the face being drawn often enough to matter, returning a black frame about
+     * three times in a hundred. Snapshotting under [frameLock] closes it.
+     */
+    private var frameSnapshot: PixelCanvas? = null
+    private val frameLock = Any()
 
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
@@ -299,15 +307,24 @@ class ClockService : Service(), Api {
      * Renders one frame and fans it out. Returns the canvas, which the driver
      * turns into a bitmap and everything else reads for previews.
      */
-    private fun produceFrame(w: Int, h: Int): PixelCanvas? {
+    private fun produceFrame(w: Int, h: Int): PixelCanvas? = synchronized(frameLock) {
+        // Synchronized because there are two callers: the driver pulls frames on
+        // its own thread, and the tick loop drives the simulated panel. They do
+        // not normally overlap, but they do during a connect or a disconnect,
+        // and FrameRenderer keeps one canvas it draws into repeatedly.
         val s = store.current
-        val canvas = renderer.render(s, w, h, System.currentTimeMillis()) ?: return null
+        val canvas = renderer.render(s, w, h, System.currentTimeMillis())
+            ?: return@synchronized null
         countFrame()
 
         // Previews get the scene as it will appear on the wall, not the panel's
         // physical strip — on a vertical mount those are not the same picture.
         val shown = renderer.scene ?: canvas
-        lastFrame = shown
+        val snap = frameSnapshot.let {
+            if (it != null && it.width == shown.width && it.height == shown.height) it
+            else PixelCanvas(shown.width, shown.height).also { c -> frameSnapshot = c }
+        }
+        snap.copyFrom(shown)
         try {
             // Raw RGB over the socket: cheaper for both ends than a PNG at a
             // dozen frames a second.
@@ -321,7 +338,7 @@ class ClockService : Service(), Api {
             } catch (_: Exception) {
             }
         }
-        return canvas
+        return@synchronized canvas
     }
 
     /** The in-app preview view subscribes here. */
@@ -564,9 +581,10 @@ class ClockService : Service(), Api {
     }
 
     override fun previewPng(): ByteArray? {
-        val canvas = lastFrame ?: return null
+        // Under the same lock the snapshot is written with, so a caller can
+        // never observe a half-drawn frame.
+        val bmp = synchronized(frameLock) { frameSnapshot?.toBitmap() } ?: return null
         return try {
-            val bmp = canvas.toBitmap()
             val bos = ByteArrayOutputStream()
             bmp.compress(Bitmap.CompressFormat.PNG, 100, bos)
             bmp.recycle()

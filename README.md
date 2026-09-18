@@ -176,6 +176,72 @@ preview's job is to answer "what will I see".
 
 ---
 
+## The clock face
+
+### Fonts
+
+Twelve families, all original designs. The named inspirations are trademarked
+typefaces; nothing is traced from them and no font file ships in the APK.
+
+`SYSTEM` · `NARROW` · `TERMINAL` (DOS slab) · `SEGMENT` (seven-segment LCD) ·
+`BLOCK` · `HAIRLINE` · `GALACTIC` · `STARSHIP` · `CLASSY` · `MATRIX` ·
+`ARCADE` · `DOTMATRIX`
+
+They are **drawn, not encoded**. A 14-row glyph is a 14-bit number per column,
+and nobody can read a design out of `0x3F1E` or spot a wrong nibble in review, so
+`font/ArtFonts.kt` holds the shapes as ASCII art:
+
+```kotlin
+'7' to """
+    #########
+    #########
+           ##
+          ##
+         ##
+"""
+```
+
+`PixelFontArt` parses that once at class-load into exactly the same column-bit
+arrays the hand-written tables use. The runtime cost is nil and the review cost
+becomes "does that look like a seven".
+
+Each family is authored at one cut and scaled by whole multiples for taller
+panels; a family too tall for a short panel falls back down the list. Two details
+worth knowing: `DOTMATRIX` is *derived* from the 5×7 by spreading it onto a
+coarser pitch, so the dotted eight can never disagree with the solid one; and
+`SEGMENT` turns off edge-trimming, because a seven-segment `1` is the two
+right-hand lamps and belongs against the right of its cell, not floating in the
+middle of it.
+
+### Digit-change effects
+
+Twenty-one, run per character cell — when 13:59 becomes 14:00 only the three
+digits that changed animate.
+
+`switch` · `fade` · `scroll-up` / `-down` / `-left` / `-right` · `flip`
+(split-flap, with the hinge) · `page-list` (odometer roll through the
+intervening digits) · `grow` · `shrink` · `matrix-trace` · `assemble` ·
+`dissolve` · `glitch` (slice offset + channel split) · `typewriter` · `ripple` ·
+`burn-in` · `wipe` · `shatter` · `jump` · `random`
+
+Every one is a pure function of a 0–1 progress value, never of frame count. An
+iPixel panel delivers somewhere between 1 and 12 frames a second depending on its
+generation and the rate wanders, so an effect that advanced per frame would run
+at a different speed on every panel and stutter whenever one was dropped. A
+400 ms transition takes 400 ms whether that is forty frames or four.
+
+### Vertical banners
+
+A panel hung on its end gets a choice of arrangement, because which is better
+depends on how narrow it is:
+
+- **Two digits a row** — `14` over `04`. On a 16-column banner two full-size
+  digits will not fit side by side, so this drops to the 3×5 face.
+- **One digit a row** — `1 / 4 / — / 0 / 4`, with a blinking divider standing in
+  for the colon. Each digit keeps the full 14-row font, which on a narrow banner
+  is roughly twice the size and the difference between readable across a room
+  and not.
+
 ## Status
 
 Working end to end, on hardware:
@@ -185,14 +251,12 @@ Working end to end, on hardware:
 - the simulated panel and the no-panel reminder
 - the web server, password protection, the live WebSocket preview
 - the app shell with its native preview
-- a `SYSTEM` / `NARROW` bitmap clock face with solid, gradient, animated-gradient,
-  rainbow and per-digit colouring, and the visibility policies
+- the twelve fonts, the twenty-one digit effects, both banner layouts, and
+  solid / gradient / animated-gradient / rainbow / per-digit colouring
+- the visibility policies
 
 Still to come:
 
-- the rest of the font library — MATRIX, GALACTIC, STARSHIP, TERMINAL, SEGMENT,
-  DOTMATRIX, HAIRLINE, BLOCK, ARCADE, CLASSY
-- digit-change effects beyond fade and switch
 - the procedural backgrounds, and image / GIF / video backgrounds
 - date, weather, sunrise and sunset, with a city picker
 

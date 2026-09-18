@@ -191,11 +191,86 @@ object PixelFonts {
         cuts = listOf(NARROW_3X5)
     )
 
+    val TERMINAL = Family(
+        id = "terminal",
+        name = "TERMINAL",
+        blurb = "DOS slab. Square corners, two-pixel strokes, readable across a room.",
+        cuts = listOf(ArtFonts.TERMINAL_14, SYSTEM_5X7)
+    )
+
+    val SEGMENT = Family(
+        id = "segment",
+        name = "SEGMENT",
+        blurb = "Seven-segment, chamfered ends and a gap at the waist. Alarm-clock LCD.",
+        cuts = listOf(ArtFonts.SEGMENT_14, NARROW_3X5)
+    )
+
+    val BLOCK = Family(
+        id = "block",
+        name = "BLOCK",
+        blurb = "Three-pixel strokes and no daylight. The loudest face here.",
+        cuts = listOf(ArtFonts.BLOCK_14, SYSTEM_5X7)
+    )
+
+    val HAIRLINE = Family(
+        id = "hairline",
+        name = "HAIRLINE",
+        blurb = "One-pixel strokes, wide stance. Barely any LEDs lit, which suits a dark room.",
+        cuts = listOf(ArtFonts.HAIRLINE_14, NARROW_3X5)
+    )
+
+    val GALACTIC = Family(
+        id = "galactic",
+        name = "GALACTIC",
+        blurb = "Angular with clipped corners and swept tails. A title card, not a readout.",
+        cuts = listOf(ArtFonts.GALACTIC_14, SYSTEM_5X7)
+    )
+
+    val STARSHIP = Family(
+        id = "starship",
+        name = "STARSHIP",
+        blurb = "Rounded shoulders and heavy bars, off a ship's console panel.",
+        cuts = listOf(ArtFonts.STARSHIP_14, SYSTEM_5X7)
+    )
+
+    val CLASSY = Family(
+        id = "classy",
+        name = "CLASSY",
+        blurb = "Serifed slab numerals from an old machine's front panel.",
+        cuts = listOf(ArtFonts.CLASSY_14, SYSTEM_5X7)
+    )
+
+    val MATRIX = Family(
+        id = "matrix",
+        name = "MATRIX",
+        blurb = "Narrow, tall, slashed zero. Made to pair with the trace effect and the rain.",
+        cuts = listOf(ArtFonts.MATRIX_14, NARROW_3X5)
+    )
+
+    val ARCADE = Family(
+        id = "arcade",
+        name = "ARCADE",
+        blurb = "Eight-bit score-counter numerals. Doubles to 16 rows without softening.",
+        cuts = listOf(ArtFonts.ARCADE_8, NARROW_3X5)
+    )
+
     /**
-     * Every family, in picker order. Phase 2 adds MATRIX, GALACTIC, STARSHIP,
-     * TERMINAL, SEGMENT, DOTMATRIX, HAIRLINE, BLOCK, ARCADE and CLASSY here.
+     * Round dots on a visible pitch, derived from the 5x7 rather than drawn:
+     * the shapes are already known to read, and deriving them means the dotted
+     * eight can never disagree with the solid one.
      */
-    val families: List<Family> = listOf(SYSTEM, NARROW)
+    val DOTMATRIX = Family(
+        id = "dotmatrix",
+        name = "DOTMATRIX",
+        blurb = "Single dots on a coarse pitch, like a station departure board.",
+        cuts = listOf(SYSTEM_5X7.dotted(2), SYSTEM_5X7)
+    )
+
+    /** Every family, in picker order. */
+    val families: List<Family> = listOf(
+        SYSTEM, NARROW, TERMINAL, SEGMENT, BLOCK, HAIRLINE,
+        GALACTIC, STARSHIP, CLASSY, MATRIX, ARCADE, DOTMATRIX
+    )
 
     fun family(id: String?): Family =
         families.firstOrNull { it.id == id } ?: SYSTEM

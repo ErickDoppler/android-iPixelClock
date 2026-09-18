@@ -53,6 +53,18 @@ runtime-permission path. Those need emulators before the project is called done.
   glyphs for them.
 - **Fonts are original designs.** The named inspirations are trademarked
   typefaces; nothing is traced from them and no font files ship in the APK.
+- **New fonts are drawn, not encoded.** Add them as ASCII art in
+  `font/ArtFonts.kt` via `PixelFontArt.font`, never as hex column tables — a
+  wrong nibble in `0x3F1E` is invisible in review. SYSTEM and NARROW stay
+  numeric only because they are carried over from the driver and already proven.
+- **Effects are functions of progress, never of frame count**
+  (`fx/Transitions.kt`). The panel's frame rate varies by an order of magnitude
+  between generations and wanders within one; anything that advances per frame
+  will run at the wrong speed and stutter on dropped frames.
+- **Never hand a live render buffer to another thread.** `FrameRenderer` redraws
+  one canvas in place. Anything read off the render thread — `/api/preview.png`
+  is the case that bit — takes a copy under `frameLock`, or it will occasionally
+  catch the frame between `clear()` and the face being drawn.
 - Guard every API-gated call with `Build.VERSION.SDK_INT`, and prefer the older
   overload where referencing a newer class in a signature would drag it into a
   class that has to load on Android 5.
@@ -66,8 +78,9 @@ led/IPixelHub       the shared BLE driver (verbatim)
 led/PanelTuning     measures the fastest frame encoding per panel size
 led/LedPages        only the driver's SCREEN OFF sign-off frame
 render/             PixelCanvas, FrameRenderer, Orientation, PanelTarget
-font/               PixelFont model + the bitmap font registry
-face/               ClockFace layout and formatting, ColorModes
+font/               PixelFont model, PixelFontArt (ASCII-art builder), ArtFonts, registry
+face/               ClockFace layout, per-cell transition state, ColorModes
+fx/                 DigitTransition + the 21 digit-change effects
 web/                WebServer (HTTP + WS), Auth, Api + Schema
 assets/web/         index.html, app.css, app.js, login.html, locked.html
 ```

@@ -167,6 +167,7 @@
     fillSelect('background', schema.backgrounds, 'id', 'label');
     fillSelect('visibility', schema.visibilities, 'id', 'label');
     fillSelect('dateFormat', schema.dateFormats, 'id', 'label');
+    fillSelect('verticalStyle', schema.verticalStyles, 'id', 'label');
 
     var sim = $('simSize');
     sim.innerHTML = '';
@@ -203,7 +204,7 @@
     'frameIntervalMs'];
 
   var SELECTS = ['fontFamily', 'colorMode', 'transition', 'background',
-    'visibility', 'dateFormat'];
+    'visibility', 'dateFormat', 'verticalStyle'];
 
   var NUMBERS = ['dutyShowSeconds', 'hideSeconds', 'port'];
 

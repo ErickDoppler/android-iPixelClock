@@ -2,6 +2,7 @@ package com.example.ipixelclock.web
 
 import com.example.ipixelclock.face.ColorModes
 import com.example.ipixelclock.font.PixelFonts
+import com.example.ipixelclock.fx.Transitions
 import com.example.ipixelclock.render.SimulatedPanel
 import org.json.JSONArray
 import org.json.JSONObject
@@ -52,10 +53,13 @@ object Schema {
     fun build(): JSONObject = JSONObject().apply {
         put("fonts", fonts())
         put("colorModes", pairs(ColorModes.MODES))
-        put("transitions", pairs(TRANSITIONS))
+        // Straight from the effect registry, so adding one in Kotlin puts it in
+        // the picker with no HTML change.
+        put("transitions", pairs(Transitions.options()))
         put("backgrounds", pairs(BACKGROUNDS))
         put("mediaMotions", pairs(MEDIA_MOTIONS))
         put("visibilities", pairs(VISIBILITIES))
+        put("verticalStyles", pairs(VERTICAL_STYLES))
         put("dateFormats", pairs(DATE_FORMATS))
         put("panelPresets", presets())
         put("rotations", JSONArray(listOf(0, 90, 180, 270)))
@@ -93,13 +97,10 @@ object Schema {
         return arr
     }
 
-    /**
-     * Phase 2 fills these in as the effects land. The ids are fixed now so the
-     * settings written today keep meaning the same thing tomorrow.
-     */
-    val TRANSITIONS: List<Pair<String, String>> = listOf(
-        "switch" to "Instant switch",
-        "fade" to "Fade"
+    /** How a vertical banner arranges the time. */
+    val VERTICAL_STYLES: List<Pair<String, String>> = listOf(
+        "pairs" to "Two digits a row (13 / 45)",
+        "digits" to "One digit a row, with a divider"
     )
 
     val BACKGROUNDS: List<Pair<String, String>> = listOf(
