@@ -41,9 +41,10 @@ runtime-permission path. Those need emulators before the project is called done.
   simulated — never let a preview pass for real output.
 - **Never let the web interface fall open.** With no password set, remote access
   is refused, not permitted. The password is settable only from the app.
-- **Frame encoding is measured, not assumed** (`led/PanelTuning.kt`). The tuned
-  default wins by 50× on a 96×16 E15 and loses by 8× on a 144×16 running firmware
-  21.17. Do not hardcode a winner; do not remove the probe.
+- **Frame encoding is measured, not assumed** (`led/PanelTuning.kt`). The answer
+  depends on the phone's radio, not the panel's firmware: live `0x0000` runs at
+  ~10 fps on a BT 5 handset and ~1 fps on a 2013 BT 4.0 one, on the same panel.
+  Do not hardcode a winner; do not remove the probe. See "The frame-rate trap".
 - **Orientation swaps the canvas, not just the output.** At 90°/270° the scene is
   composed at the swapped size so the layout can respond to being tall. Anything
   that draws must ask the canvas for its own width and height and nothing else.

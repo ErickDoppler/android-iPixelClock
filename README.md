@@ -112,20 +112,10 @@ The driver's tuned default is the live-canvas path (opcode `0x0000` behind DIY
 mode), which on the 96×16 E15 it was measured against is the clear winner — about
 10 ms a frame against roughly 500 ms for the stored-image path.
 
-**That does not generalise.** Measured here on a 144×16 (type 135, MCU 21.17 /
-BLE 1.13):
+**It does not generalise, but not for the reason you would guess.** It is not
+the panel's firmware that decides: it is the phone's radio.
 
-| Encoding | fps |
-|---|---|
-| `0x0000` live canvas *(the tuned default)* | **1.0** |
-| `0x0002` raw RGB888 | 0.6 |
-| `0x0002` PNG *(the legacy fallback)* | **7.3 – 8.6** |
-
-The exact inverse, and an eightfold difference. Transfer time is ~30 ms either
-way, so this is the panel's own processing, not the radio — nothing on the phone
-side changes it.
-
-**It is the phone and the panel together, not the panel alone.** The same
+**The phone and the panel together, not the panel alone.** The same
 144×16 panel, the same driver, two phones:
 
 | | Cat S62 Pro (BT 5) | LG V500 (2013, BT 4.0) |
