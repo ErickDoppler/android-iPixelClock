@@ -384,14 +384,28 @@ class ClockService : Service(), Api {
      * asking again.
      */
     private fun latestPanelBitmap(): Bitmap? {
-        val bmp = synchronized(frameLock) { panelSnapshot?.toBitmap() }
-        // This call is the panel's own pull: the driver asks exactly once per
-        // frame it is about to send. Counting here, rather than in the render
-        // loop, is the difference between measuring the panel and measuring
-        // ourselves — and the tuner has to measure the panel.
-        if (bmp != null) countPanelFrame()
+        var changed = true
+        val bmp = synchronized(frameLock) {
+            val snap = panelSnapshot ?: return@synchronized null
+            // Mirror the driver's own dedupe so the reported rate is frames the
+            // panel actually receives. Counting every pull would overstate it
+            // badly on a still clock: the driver asks a dozen times a second
+            // and transmits twice.
+            val hash = java.util.Arrays.hashCode(snap.pixels)
+            changed = !hub.skipUnchanged || hash != lastPulledHash
+            lastPulledHash = hash
+            snap.toBitmap()
+        }
+        // This call is the panel's own pull — the driver asks exactly once per
+        // frame it is about to consider sending. Counting here, rather than in
+        // the render loop, is the difference between measuring the panel and
+        // measuring ourselves, and the tuner has to measure the panel.
+        if (bmp != null && changed) countPanelFrame()
         return bmp
     }
+
+    /** Last frame handed to the driver, to tell a repeat from a new one. */
+    private var lastPulledHash = 0
 
     /**
      * Hands the latest frame to the previews, off the render thread.
