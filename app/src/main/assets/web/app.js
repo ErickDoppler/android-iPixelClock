@@ -207,7 +207,8 @@
   var SELECTS = ['fontFamily', 'colorMode', 'transition', 'background',
     'visibility', 'dateFormat', 'verticalStyle'];
 
-  var NUMBERS = ['dutyShowSeconds', 'hideSeconds', 'port'];
+  var NUMBERS = ['dutyShowSeconds', 'hideSeconds', 'port',
+    'infoTimeSeconds', 'infoDateSeconds', 'infoConditionsSeconds', 'infoTelemetrySeconds'];
 
   var COLORS = ['colorPrimary', 'colorSecondary', 'backgroundColor', 'backgroundColor2'];
 
@@ -492,6 +493,16 @@
     setText('st-pos', r.hasLocation
       ? (r.lat.toFixed(3) + ', ' + r.lon.toFixed(3))
       : 'unknown', r.hasLocation ? 'good' : 'warn');
+
+    if (set) {
+      // Always the sum of all four, whatever is missing. 60 is the value that
+      // keeps the rotation landing on the same seconds every minute.
+      var cycle = (set.infoTimeSeconds || 0) + (set.infoDateSeconds || 0) +
+        (set.infoConditionsSeconds || 0) + (set.infoTelemetrySeconds || 0);
+      setText('st-cycle',
+        cycle + ' s' + (cycle === 60 ? ' — locked to the minute' : ' — drifts across the minute'),
+        cycle === 60 ? 'good' : 'warn');
+    }
   }
 
   function wireCitySearch() {

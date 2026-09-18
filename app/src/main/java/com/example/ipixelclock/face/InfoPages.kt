@@ -34,45 +34,69 @@ object InfoPages {
 
     enum class Page { TIME, DATE, CONDITIONS, TELEMETRY }
 
-    private const val CYCLE_MS = 60_000L
-    private const val TIME_MS = 45_000L
-    private const val DATE_MS = 5_000L
-    private const val SHORT_MS = 5_000L
-    private const val LONG_MS = 10_000L
-
     /**
-     * Which page is due now.
+     * The rotation, resolved for what is actually available right now.
      *
-     * [hasConditions] and [hasTelemetry] collapse the schedule when a source is
-     * missing: with no telemetry the conditions page absorbs its five seconds,
-     * and with neither the time simply holds the panel.
+     * The seconds come from the settings. A page that cannot be shown does not
+     * shorten the cycle — it hands its slot to the conditions page if there is
+     * one, and to the time otherwise. That is what keeps the total constant, so
+     * a rotation tuned to sixty seconds stays locked to the minute whether or
+     * not the network answered, instead of sliding every time the weather
+     * lookup fails.
      */
-    fun pageAt(
-        nowMs: Long,
-        showDate: Boolean,
-        hasConditions: Boolean,
-        hasTelemetry: Boolean
-    ): Page {
-        if (!showDate && !hasConditions && !hasTelemetry) return Page.TIME
+    class Schedule(
+        settings: Settings,
+        val showDate: Boolean,
+        val hasConditions: Boolean,
+        val hasTelemetry: Boolean
+    ) {
+        private val timeMs = settings.infoTimeSeconds * 1000L
+        private val dateMs = settings.infoDateSeconds * 1000L
+        private val condMs = settings.infoConditionsSeconds * 1000L
+        private val telemMs = settings.infoTelemetrySeconds * 1000L
 
-        val phase = nowMs % CYCLE_MS
-        var cursor = TIME_MS
-        // Time always holds the first 45 s. Anything not shown hands its slot
-        // back to the time rather than shortening the cycle, so the rotation
-        // stays minute-aligned.
+        /** Seconds belonging to pages that have nothing to show. */
+        private val orphan =
+            (if (showDate) 0L else dateMs) +
+                (if (hasConditions) 0L else condMs) +
+                (if (hasTelemetry) 0L else telemMs)
+
+        val conditionsSpan = if (hasConditions) condMs + orphan else 0L
+        val timeSpan = timeMs + (if (hasConditions) 0L else orphan)
+        val dateSpan = if (showDate) dateMs else 0L
+        val telemetrySpan = if (hasTelemetry) telemMs else 0L
+
+        /** Always the sum of all four settings, whatever is missing. */
+        val cycleMs = timeMs + dateMs + condMs + telemMs
+
+        val rotates get() = showDate || hasConditions || hasTelemetry
+
+        fun spanOf(page: Page): Long = when (page) {
+            Page.TIME -> timeSpan
+            Page.DATE -> dateSpan
+            Page.CONDITIONS -> conditionsSpan
+            Page.TELEMETRY -> telemetrySpan
+        }
+    }
+
+    /** Which page is due now. */
+    fun pageAt(nowMs: Long, s: Schedule): Page {
+        if (!s.rotates || s.cycleMs <= 0L) return Page.TIME
+
+        val phase = nowMs % s.cycleMs
+        var cursor = s.timeSpan
         if (phase < cursor) return Page.TIME
 
-        if (showDate) {
-            if (phase < cursor + DATE_MS) return Page.DATE
-            cursor += DATE_MS
+        if (s.showDate) {
+            if (phase < cursor + s.dateSpan) return Page.DATE
+            cursor += s.dateSpan
         }
-        if (hasConditions) {
-            val span = if (hasTelemetry) SHORT_MS else LONG_MS
-            if (phase < cursor + span) return Page.CONDITIONS
-            cursor += span
+        if (s.hasConditions) {
+            if (phase < cursor + s.conditionsSpan) return Page.CONDITIONS
+            cursor += s.conditionsSpan
         }
-        if (hasTelemetry) {
-            if (phase < cursor + SHORT_MS) return Page.TELEMETRY
+        if (s.hasTelemetry) {
+            if (phase < cursor + s.telemetrySpan) return Page.TELEMETRY
         }
         return Page.TIME
     }
@@ -137,13 +161,6 @@ object InfoPages {
         drawBigLine(canvas, settings, coverage, line, icon, elapsedInPageMs, pageDurationMs)
     }
 
-    /** How long a page holds the panel, so a scroll can be paced to fit it. */
-    fun durationOf(page: Page, hasTelemetry: Boolean): Long = when (page) {
-        Page.TIME -> TIME_MS
-        Page.DATE -> DATE_MS
-        Page.CONDITIONS -> if (hasTelemetry) SHORT_MS else LONG_MS
-        Page.TELEMETRY -> SHORT_MS
-    }
 
     // ------------------------------------------------------------- the pages
 

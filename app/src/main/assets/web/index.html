@@ -314,12 +314,33 @@
         <div class="kv"><span class="k">Weather</span><span class="v" id="st-weather">&mdash;</span></div>
         <div class="kv"><span class="k">Telemetry</span><span class="v" id="st-telemetry">&mdash;</span></div>
       </div>
-      <p class="hint">Each minute: <b>time for 45&nbsp;s</b>, then the date for
-        5&nbsp;s, the conditions for 5&nbsp;s, then pressure and humidity for
-        5&nbsp;s. With no pressure or humidity to show, the conditions take
-        10&nbsp;s instead &mdash; so the cycle is always exactly a minute and stays
-        locked to it. A page whose data is missing is skipped entirely rather
-        than cutting away from the clock to show nothing.</p>
+      <div class="row">
+        <label for="infoTimeSeconds">Time (s)</label>
+        <input type="number" id="infoTimeSeconds" min="3" max="3600">
+      </div>
+      <div class="row">
+        <label for="infoDateSeconds">Date (s)</label>
+        <input type="number" id="infoDateSeconds" min="1" max="600">
+      </div>
+      <div class="row">
+        <label for="infoConditionsSeconds">Conditions (s)</label>
+        <input type="number" id="infoConditionsSeconds" min="1" max="600">
+      </div>
+      <div class="row">
+        <label for="infoTelemetrySeconds">Pressure / humidity (s)</label>
+        <input type="number" id="infoTelemetrySeconds" min="1" max="600">
+      </div>
+      <div class="status-grid">
+        <div class="kv"><span class="k">Cycle</span><span class="v" id="st-cycle">&mdash;</span></div>
+      </div>
+      <p class="hint">A page whose data is missing hands its seconds to the
+        conditions page &mdash; or to the time when there are no conditions either
+        &mdash; so the cycle is always the sum of all four, whether or not the
+        weather lookup answered. It is never shortened, and the clock is never
+        cut away from to show nothing.</p>
+      <p class="hint">Keeping the total at <b>60&nbsp;s</b> is what locks the
+        rotation to the minute, so the pages land on the same seconds every time.
+        Any other total works fine &mdash; it just drifts across the minute.</p>
     </div>
   </section>
 

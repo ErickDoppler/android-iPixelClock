@@ -131,6 +131,23 @@ data class Settings(
 
     // ---------------------------------------------------------- the info row
 
+    /**
+     * How long each page holds the panel, in seconds.
+     *
+     * The defaults total sixty, which is what keeps the rotation locked to the
+     * minute rather than drifting across it. Any other total still works — the
+     * cycle simply becomes that long — so the UI reports the sum rather than
+     * letting it surprise anyone.
+     *
+     * A page with no data to show hands its seconds to the conditions page when
+     * there is one, and to the time otherwise, so the cycle length never depends
+     * on whether the network happened to answer.
+     */
+    val infoTimeSeconds: Int = 45,
+    val infoDateSeconds: Int = 5,
+    val infoConditionsSeconds: Int = 5,
+    val infoTelemetrySeconds: Int = 5,
+
     val showDate: Boolean = true,
     /** strftime-ish: DMY | MDY | YMD | WEEKDAY. */
     val dateFormat: String = "DMY",
@@ -196,6 +213,10 @@ data class Settings(
         put("mediaId", mediaId)
         put("mediaMotion", mediaMotion)
 
+        put("infoTimeSeconds", infoTimeSeconds)
+        put("infoDateSeconds", infoDateSeconds)
+        put("infoConditionsSeconds", infoConditionsSeconds)
+        put("infoTelemetrySeconds", infoTelemetrySeconds)
         put("showDate", showDate)
         put("dateFormat", dateFormat)
         put("showWeather", showWeather)
@@ -259,6 +280,10 @@ data class Settings(
         mediaId = patch.optString("mediaId", mediaId),
         mediaMotion = patch.optString("mediaMotion", mediaMotion),
 
+        infoTimeSeconds = patch.optInt("infoTimeSeconds", infoTimeSeconds).coerceIn(3, 3600),
+        infoDateSeconds = patch.optInt("infoDateSeconds", infoDateSeconds).coerceIn(1, 600),
+        infoConditionsSeconds = patch.optInt("infoConditionsSeconds", infoConditionsSeconds).coerceIn(1, 600),
+        infoTelemetrySeconds = patch.optInt("infoTelemetrySeconds", infoTelemetrySeconds).coerceIn(1, 600),
         showDate = patch.optBoolean("showDate", showDate),
         dateFormat = patch.optString("dateFormat", dateFormat),
         showWeather = patch.optBoolean("showWeather", showWeather),

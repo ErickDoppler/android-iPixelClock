@@ -113,7 +113,8 @@ class FrameRenderer {
         //      there is no room for both, so the rotation gives the readouts a
         //      few seconds a minute and hands it straight back.
         val coverage = face.visibility(settings, nowMs, sunriseMs, sunsetMs)
-        val page = currentPage(settings, nowMs)
+        val schedule = scheduleFor(settings)
+        val page = schedule?.let { InfoPages.pageAt(nowMs, it) } ?: InfoPages.Page.TIME
         if (page != lastPage) {
             lastPage = page
             pageSinceMs = nowMs
@@ -128,7 +129,9 @@ class FrameRenderer {
             InfoPages.draw(
                 scene, page, settings, data, nowMs, coverage * fade,
                 elapsedInPageMs = nowMs - pageSinceMs,
-                pageDurationMs = InfoPages.durationOf(page, data.hasTelemetry)
+                // The scroll is paced from this page's own span, which now
+                // comes from the settings rather than a constant.
+                pageDurationMs = schedule?.spanOf(page) ?: 5000L
             )
         }
 
@@ -185,13 +188,16 @@ class FrameRenderer {
      * A page is only offered when its data exists — otherwise the panel would
      * cut away from the clock to show "---", which is worse than not rotating.
      */
-    fun currentPage(settings: Settings, nowMs: Long): InfoPages.Page {
-        val data = dataHub ?: return InfoPages.Page.TIME
+    fun currentPage(settings: Settings, nowMs: Long): InfoPages.Page =
+        scheduleFor(settings)?.let { InfoPages.pageAt(nowMs, it) } ?: InfoPages.Page.TIME
+
+    /** The rotation resolved against what the data hub actually has. */
+    fun scheduleFor(settings: Settings): InfoPages.Schedule? {
+        val data = dataHub ?: return null
         val hasConditions = (settings.showWeather && data.weather != null) ||
             ((settings.showSunrise || settings.showSunset) &&
                 (data.sunriseMs != null || data.sunsetMs != null))
-        val hasTelemetry = data.hasTelemetry
-        return InfoPages.pageAt(nowMs, settings.showDate, hasConditions, hasTelemetry)
+        return InfoPages.Schedule(settings, settings.showDate, hasConditions, data.hasTelemetry)
     }
 
 }
