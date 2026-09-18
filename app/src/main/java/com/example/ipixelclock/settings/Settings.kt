@@ -43,6 +43,17 @@ data class Settings(
     val manualWidth: Int = 0,
     val manualHeight: Int = 0,
 
+    /**
+     * Whether a panel has been asked for, remembered across restarts.
+     *
+     * The rule is that Bluetooth is never touched unprompted — but pressing
+     * DETECT *is* the prompt, and it should not have to be repeated after every
+     * reboot, crash or reinstall. Without this the app comes back rendering to
+     * nothing while the panel sits frozen on its last frame, which looks exactly
+     * like the clock having hung. FORGET clears it.
+     */
+    val panelWanted: Boolean = false,
+
     // -------------------------------------------------------- the clock face
 
     /** Font family id from `PixelFonts.families`. */
@@ -155,6 +166,7 @@ data class Settings(
         put("simulatedHeight", simulatedHeight)
         put("manualWidth", manualWidth)
         put("manualHeight", manualHeight)
+        put("panelWanted", panelWanted)
 
         put("fontFamily", fontFamily)
         put("hour24", hour24)
@@ -217,6 +229,7 @@ data class Settings(
         simulatedHeight = patch.optInt("simulatedHeight", simulatedHeight).coerceIn(4, 128),
         manualWidth = patch.optInt("manualWidth", manualWidth).coerceIn(0, 512),
         manualHeight = patch.optInt("manualHeight", manualHeight).coerceIn(0, 128),
+        panelWanted = patch.optBoolean("panelWanted", panelWanted),
 
         fontFamily = patch.optString("fontFamily", fontFamily),
         hour24 = patch.optBoolean("hour24", hour24),

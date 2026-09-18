@@ -149,6 +149,18 @@ class ClockService : Service(), Api {
             // question answered by panelRequested.
             scheduleRender(0L)
         }
+
+        if (s.panelWanted) {
+            // A panel was connected before, so pick it up again rather than
+            // leaving it frozen on its last frame while the app renders to
+            // nothing. Delayed a moment so the service is fully up first.
+            handler?.postDelayed({
+                if (!panelRequested && store.current.panelWanted) {
+                    Log.i(TAG, "a panel was connected before — reconnecting")
+                    connectPanel()
+                }
+            }, 1500L)
+        }
         Log.i(TAG, "service up, simulated ${simulated.width}x${simulated.height}")
     }
 
@@ -200,6 +212,9 @@ class ClockService : Service(), Api {
     fun connectPanel() {
         if (panelRequested) return
         panelRequested = true
+        // Remembered, so a restart reconnects by itself. Pressing DETECT is the
+        // prompt; it should not have to be repeated after every reboot.
+        if (!store.current.panelWanted) store.update { it.copy(panelWanted = true) }
         livePanel.lastStatus = "STARTING..."
 
         hub.manualW = store.current.manualWidth
@@ -290,6 +305,8 @@ class ClockService : Service(), Api {
     fun disconnectPanel() {
         if (!panelRequested) return
         panelRequested = false
+        // FORGET means forget: do not come back on the next start either.
+        if (store.current.panelWanted) store.update { it.copy(panelWanted = false) }
         hub.renderFrame = null
         hub.disableWithGoodbye()
         livePanel.lastStatus = ""
