@@ -125,6 +125,23 @@ The exact inverse, and an eightfold difference. Transfer time is ~30 ms either
 way, so this is the panel's own processing, not the radio — nothing on the phone
 side changes it.
 
+**It is the phone and the panel together, not the panel alone.** Measured
+head-to-head — yacht-compass built for, and installed on, the same LG V500,
+driving the same 144×16 panel, its own instrumentation:
+
+```
+yacht-compass   fps=1.05  mode=2   transfer=65ms  panel=1212ms
+iPixel Clock    fps=7.9   mode=0   (after auto-tuning)
+```
+
+Both run the identical driver at its identical compiled defaults. The tuned
+default loses here because this tablet is a 2013 BT 4.0 device: it refuses the
+LE 2M PHY (`PHY update ... status=6` in the log) and a 6921-byte raw frame
+crawls, while a 250-byte PNG does not. The same driver on a modern phone gets
+the 11–16 fps the original notes record. So a figure measured on one
+phone/panel pair says nothing about another, which is the whole argument for
+measuring rather than hardcoding.
+
 So `led/PanelTuning.kt` probes each candidate for a few seconds the first time it
 sees a panel size, keeps the fastest, and remembers it in
 `shared_prefs/ipixel_tuning.xml`. It stops early once one is comfortably fast, so
