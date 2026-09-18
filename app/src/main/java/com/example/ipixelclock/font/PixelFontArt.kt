@@ -56,6 +56,16 @@ internal object PixelFontArt {
          * centred it floats in the middle, which no LCD has ever done.
          */
         trim: Boolean = true,
+        /**
+         * Glyphs to flip horizontally after drawing.
+         *
+         * For the MATRIX family, whose whole character is that several numerals
+         * run backwards. Drawing them reversed by hand would work, but then the
+         * art no longer looks like the digit it is and a reader cannot tell a
+         * deliberate mirror from a mistake. Drawing them forwards and naming the
+         * ones that flip says what is going on.
+         */
+        mirror: Set<Char> = emptySet(),
         art: List<Pair<Char, String>>
     ): PixelFont {
         val parsed = art.map { (ch, s) -> ch to rows(s) }
@@ -64,7 +74,8 @@ internal object PixelFontArt {
 
         val glyphs = HashMap<Char, IntArray>(parsed.size)
         for ((ch, lines) in parsed) {
-            glyphs[ch] = columns(lines, height, ch, id, trim)
+            val cols = columns(lines, height, ch, id, trim)
+            glyphs[ch] = if (ch in mirror) cols.reversedArray() else cols
         }
         return PixelFont(
             id = id,

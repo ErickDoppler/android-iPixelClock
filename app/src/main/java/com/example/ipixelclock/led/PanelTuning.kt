@@ -36,10 +36,13 @@ class PanelTuning(context: Context) {
     data class Config(val frameMode: Int, val writeWithResponse: Boolean) {
 
         val label: String
-            get() = when (frameMode) {
-                IPixelHub.FRAME_CAMERA -> "live 0x0000"
-                IPixelHub.FRAME_RAW -> "raw RGB 0x0002"
-                else -> "PNG 0x0002"
+            get() {
+                val path = when (frameMode) {
+                    IPixelHub.FRAME_CAMERA -> "live 0x0000"
+                    IPixelHub.FRAME_RAW -> "raw RGB 0x0002"
+                    else -> "PNG 0x0002"
+                }
+                return path + if (writeWithResponse) "" else ", no-response"
             }
 
         fun serialise(): String = "$frameMode:${if (writeWithResponse) 1 else 0}"
@@ -62,6 +65,12 @@ class PanelTuning(context: Context) {
      */
     val candidates: List<Config> = listOf(
         Config(IPixelHub.FRAME_CAMERA, writeWithResponse = false),
+        // Both write modes for the PNG path. Measured on the 144x16, dropping
+        // the response took the transfer from 77-108 ms to 5-16 ms for the same
+        // frame. The panel claws most of it back in its own processing, so the
+        // end-to-end gain is small — but it is a gain, and it is free, and on a
+        // panel that is not the bottleneck it would be the whole difference.
+        Config(IPixelHub.FRAME_PNG, writeWithResponse = false),
         Config(IPixelHub.FRAME_PNG, writeWithResponse = true),
         Config(IPixelHub.FRAME_RAW, writeWithResponse = true)
     )

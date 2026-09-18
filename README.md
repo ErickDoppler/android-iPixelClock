@@ -176,6 +176,31 @@ preview's job is to answer "what will I see".
 
 ---
 
+## Threads
+
+Five, and the separation is the point:
+
+| Thread | Job |
+|---|---|
+| `ipixel-render` | composites frames, and nothing else |
+| `ipixel` (in the driver) | chunking, GATT writes, acks |
+| `ipixel-preview` | WebSocket fan-out and the in-app preview |
+| web | one per HTTP connection |
+| main | the app shell |
+
+The driver pulls frames by calling `renderFrame()` **on its own thread**, and it
+is a strict one-frame-at-a-time pipeline — every millisecond spent inside that
+callback is a millisecond the panel is not being written to. So that callback
+does nothing but copy the last finished frame. Compositing runs ahead of it on
+the render thread; preview fan-out runs behind it on another. A browser watching
+the preview can never slow the panel down, and neither can a transition.
+
+The diagnostics card reports both rates. **To panel** is the honest throughput,
+counted from the driver's own pull; **Rendered** is how fast frames are being
+composited. Rendered should comfortably exceed to-panel — if it does not, the
+phone is the bottleneck rather than the display. On the 144×16 with a rainbow
+and a transition running: rendered 15.5 fps, to panel 2.7 fps.
+
 ## The clock face
 
 ### Fonts

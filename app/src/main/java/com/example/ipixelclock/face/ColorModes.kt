@@ -65,7 +65,7 @@ object ColorModes {
             "gradient-animated" -> {
                 // The gradient scrolls through the glyphs; one full cycle per
                 // 360 degrees of colorSpeed.
-                val phase = (nowMs / 1000f) * (settings.colorSpeed / 60f)
+                val phase = cyclePhase(nowMs, settings.colorSpeed / 60.0, 1.0)
                 ({ px: Int, _: Int ->
                     val t = (((px - x) / span + phase) % 1f + 1f) % 1f
                     // Ping-pong so the two ends meet without a seam.
@@ -74,7 +74,7 @@ object ColorModes {
             }
 
             "rainbow" -> {
-                val phase = (nowMs / 1000f) * settings.colorSpeed
+                val phase = cyclePhase(nowMs, settings.colorSpeed.toDouble(), 360.0)
                 ({ px: Int, _: Int ->
                     PixelCanvas.hsv(phase + (px - x) * 360f / span, 1f, 1f)
                 })
@@ -92,6 +92,25 @@ object ColorModes {
 
             else -> null // solid: the font uses colorPrimary directly
         }
+    }
+
+    /**
+     * A time-driven phase, wrapped into `0..period`, computed in double and
+     * reduced *before* it reaches a float.
+     *
+     * The obvious `(nowMs / 1000f) * speed` is broken and not obviously so: a
+     * Float carries 24 bits of mantissa, and epoch milliseconds are around
+     * 1.77e9, where consecutive representable values are ~128 apart. The phase
+     * then only moves every couple of minutes, so an "animated" gradient sits
+     * perfectly still — and with frame dedupe on, the panel stops being sent
+     * anything at all. Reducing modulo the period first keeps the number small
+     * enough for a float to resolve every millisecond of it.
+     */
+    private fun cyclePhase(nowMs: Long, perSecond: Double, period: Double): Float {
+        if (perSecond == 0.0 || period <= 0.0) return 0f
+        val seconds = (nowMs % 86_400_000L) / 1000.0
+        val phase = (seconds * perSecond) % period
+        return (if (phase < 0) phase + period else phase).toFloat()
     }
 
     /**

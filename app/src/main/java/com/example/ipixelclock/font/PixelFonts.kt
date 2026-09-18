@@ -222,14 +222,14 @@ object PixelFonts {
     val GALACTIC = Family(
         id = "galactic",
         name = "GALACTIC",
-        blurb = "Angular with clipped corners and swept tails. A title card, not a readout.",
+        blurb = "Wide, heavy and squared off with chamfered corners. The opening-title look.",
         cuts = listOf(ArtFonts.GALACTIC_14, SYSTEM_5X7)
     )
 
     val STARSHIP = Family(
         id = "starship",
         name = "STARSHIP",
-        blurb = "Rounded shoulders and heavy bars, off a ship's console panel.",
+        blurb = "Tall, condensed and heavy with hard angular corners. The title-card look.",
         cuts = listOf(ArtFonts.STARSHIP_14, SYSTEM_5X7)
     )
 
@@ -243,7 +243,7 @@ object PixelFonts {
     val MATRIX = Family(
         id = "matrix",
         name = "MATRIX",
-        blurb = "Narrow, tall, slashed zero. Made to pair with the trace effect and the rain.",
+        blurb = "Rounded and geometric, slashed zero, with 2 3 5 9 running backwards.",
         cuts = listOf(ArtFonts.MATRIX_14, NARROW_3X5)
     )
 

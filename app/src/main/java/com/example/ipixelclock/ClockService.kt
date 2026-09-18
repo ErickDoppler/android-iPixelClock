@@ -76,10 +76,24 @@ class ClockService : Service(), Api {
      * three times in a hundred. Snapshotting under [frameLock] closes it.
      */
     private var frameSnapshot: PixelCanvas? = null
+
+    /**
+     * The panel's physical buffer — the same frame after the orientation
+     * transform, which is what the driver is handed. Kept separately because on
+     * a vertical mount it is not the same picture as [frameSnapshot].
+     */
+    private var panelSnapshot: PixelCanvas? = null
+
     private val frameLock = Any()
 
+    /** The render thread. Composites frames; touches neither Bluetooth nor sockets. */
     private var thread: HandlerThread? = null
     private var handler: Handler? = null
+
+    /** Preview fan-out runs here, never on the render thread. See [publishPreview]. */
+    private var previewThread: HandlerThread? = null
+    private var previewHandler: Handler? = null
+    private val previewPending = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private val settingsListener: (Settings) -> Unit = { s -> onSettingsChanged(s) }
 
@@ -113,9 +127,14 @@ class ClockService : Service(), Api {
 
         store.addListener(settingsListener)
 
-        val t = HandlerThread("ipixel-clock").also { it.start() }
+        val t = HandlerThread("ipixel-render").also { it.start() }
         thread = t
         handler = Handler(t.looper)
+
+        val p = HandlerThread("ipixel-preview", android.os.Process.THREAD_PRIORITY_BACKGROUND)
+            .also { it.start() }
+        previewThread = p
+        previewHandler = Handler(p.looper)
 
         startForegroundNotice()
         server.start()
@@ -123,7 +142,7 @@ class ClockService : Service(), Api {
         if (s.startOnBoot || s.displayOn) {
             // Rendering always runs; whether it reaches a panel is a separate
             // question answered by panelRequested.
-            scheduleTick(0L)
+            scheduleRender(0L)
         }
         Log.i(TAG, "service up, simulated ${simulated.width}x${simulated.height}")
     }
@@ -138,7 +157,7 @@ class ClockService : Service(), Api {
             ACTION_CONNECT -> connectPanel()
             ACTION_DISCONNECT -> disconnectPanel()
         }
-        scheduleTick(0L)
+        scheduleRender(0L)
         // The clock should come back by itself if Android reclaims the process.
         return START_STICKY
     }
@@ -163,6 +182,10 @@ class ClockService : Service(), Api {
         thread?.quitSafely()
         thread = null
         handler = null
+        previewHandler?.removeCallbacksAndMessages(null)
+        previewThread?.quitSafely()
+        previewThread = null
+        previewHandler = null
     }
 
     // ------------------------------------------------------------- the panel
@@ -190,7 +213,15 @@ class ClockService : Service(), Api {
         }
         // The driver pulls frames on its own thread at its own pace; this is the
         // single place a frame is produced for anything.
-        hub.renderFrame = { produceFrame(hub.width, hub.height)?.toBitmap() }
+        hub.renderFrame = { latestPanelBitmap() }
+
+        // A clock is mostly still. The driver ships with dedupe off because a
+        // telemetry page changes every frame, but here the face is identical
+        // between colon blinks, and the panel needs 100-250 ms to swallow a
+        // frame it did not need. Dropping the repeats hands that time back to
+        // the frames that do change, so a transition gets the full rate.
+        // Overridable by the "dedupe" key in ipixel_lab.xml, below.
+        hub.skipUnchanged = true
 
         applyLabOverrides()
         applyFrameInterval(store.current)
@@ -269,33 +300,46 @@ class ClockService : Service(), Api {
     }
 
     // ------------------------------------------------------------ the frames
+    //
+    // Four threads, and the split is the point:
+    //
+    //   render   composites frames and nothing else
+    //   ipixel   the driver's own thread: chunking, GATT writes, acks
+    //   preview  WebSocket fan-out and the in-app preview
+    //   web      one per HTTP connection
+    //
+    // What makes this worth doing is that IPixelHub pulls frames by calling
+    // renderFrame() *on its own thread*, and it is a strict one-frame-at-a-time
+    // pipeline: every millisecond spent inside that call is a millisecond the
+    // panel is not being written to. Compositing a face with a transition
+    // running, on a 2013 tablet, is not free. So the render loop runs
+    // independently and keeps a finished frame ready; renderFrame() just takes
+    // a copy of it and returns. The driver never waits for the renderer, the
+    // renderer never waits for Bluetooth, and neither waits for a browser.
 
-    private val tick = Runnable { onTick() }
+    private val renderTick = Runnable { renderLoop() }
 
-    private fun scheduleTick(delayMs: Long) {
-        handler?.removeCallbacks(tick)
-        handler?.postDelayed(tick, delayMs)
+    private fun scheduleRender(delayMs: Long) {
+        handler?.removeCallbacks(renderTick)
+        handler?.postDelayed(renderTick, delayMs)
     }
 
     /**
-     * The simulated-panel frame clock.
-     *
-     * With a real panel the *driver* paces the frames — it is a single-frame
-     * pipeline and pushing faster than it acknowledges just gets frames rejected
-     * — so this loop only runs the preview path. It also keeps ticking while a
-     * panel is connected but not yet resolved, so the previews do not freeze
-     * during a scan.
+     * The render loop. Runs on its own thread, at its own cadence, whether or
+     * not a panel is attached — the previews are fed the same frames either way.
      */
-    private fun onTick() {
+    private fun renderLoop() {
         val s = store.current
-        val useLive = panelRequested && livePanel.isLive
-        if (!useLive) {
-            produceFrame(simulated.width, simulated.height)
-        }
-        // Idle panels do not need 12 fps. A static face on a black background
-        // only has to redraw when the digits or the colon change.
+        val live = panelRequested && livePanel.isLive
+        val w = if (live) hub.width else simulated.width
+        val h = if (live) hub.height else simulated.height
+        renderOnce(w, h)
+
+        // A still clock does not need twelve frames a second. The driver's own
+        // dedupe drops the repeats anyway, but not rendering them at all saves
+        // the CPU as well as the radio.
         val interval = if (isAnimated(s)) s.frameIntervalMs.toLong() else 500L
-        scheduleTick(interval)
+        scheduleRender(interval)
     }
 
     private fun isAnimated(s: Settings): Boolean =
@@ -304,41 +348,89 @@ class ClockService : Service(), Api {
             s.visibility == "duty" || s.showSeconds || s.blinkColon
 
     /**
-     * Renders one frame and fans it out. Returns the canvas, which the driver
-     * turns into a bitmap and everything else reads for previews.
+     * Composites one frame and stores it. Render thread only.
+     *
+     * Two snapshots come out of it, because they are not the same picture on a
+     * vertical mount: [panelSnapshot] is the panel's physical buffer, after the
+     * orientation transform, and [frameSnapshot] is the scene as it will look on
+     * the wall, which is what a preview should show.
      */
-    private fun produceFrame(w: Int, h: Int): PixelCanvas? = synchronized(frameLock) {
-        // Synchronized because there are two callers: the driver pulls frames on
-        // its own thread, and the tick loop drives the simulated panel. They do
-        // not normally overlap, but they do during a connect or a disconnect,
-        // and FrameRenderer keeps one canvas it draws into repeatedly.
+    private fun renderOnce(w: Int, h: Int) {
+        if (w <= 0 || h <= 0) return
         val s = store.current
-        val canvas = renderer.render(s, w, h, System.currentTimeMillis())
-            ?: return@synchronized null
+        val canvas = renderer.render(s, w, h, System.currentTimeMillis()) ?: return
         countFrame()
-
-        // Previews get the scene as it will appear on the wall, not the panel's
-        // physical strip — on a vertical mount those are not the same picture.
         val shown = renderer.scene ?: canvas
-        val snap = frameSnapshot.let {
-            if (it != null && it.width == shown.width && it.height == shown.height) it
-            else PixelCanvas(shown.width, shown.height).also { c -> frameSnapshot = c }
+
+        synchronized(frameLock) {
+            panelSnapshot = reuse(panelSnapshot, canvas).also { it.copyFrom(canvas) }
+            frameSnapshot = reuse(frameSnapshot, shown).also { it.copyFrom(shown) }
         }
-        snap.copyFrom(shown)
-        try {
-            // Raw RGB over the socket: cheaper for both ends than a PNG at a
-            // dozen frames a second.
-            server.broadcastFrame(shown)
-        } catch (e: Exception) {
-            Log.d(TAG, "preview broadcast failed", e)
+        publishPreview()
+    }
+
+    private fun reuse(existing: PixelCanvas?, like: PixelCanvas): PixelCanvas =
+        if (existing != null && existing.width == like.width && existing.height == like.height) {
+            existing
+        } else {
+            PixelCanvas(like.width, like.height)
         }
-        previewListener?.let { l ->
+
+    /**
+     * What the driver gets when it asks for a frame: a copy of whatever the
+     * render loop last finished, and no compositing on its thread.
+     *
+     * Null until the first frame exists, which the driver handles by waiting and
+     * asking again.
+     */
+    private fun latestPanelBitmap(): Bitmap? {
+        val bmp = synchronized(frameLock) { panelSnapshot?.toBitmap() }
+        // This call is the panel's own pull: the driver asks exactly once per
+        // frame it is about to send. Counting here, rather than in the render
+        // loop, is the difference between measuring the panel and measuring
+        // ourselves — and the tuner has to measure the panel.
+        if (bmp != null) countPanelFrame()
+        return bmp
+    }
+
+    /**
+     * Hands the latest frame to the previews, off the render thread.
+     *
+     * This used to broadcast inline, and it cost about four fifths of the panel's
+     * throughput. `renderFrame` is called on the driver's own thread, and the
+     * driver is a strict one-frame-at-a-time pipeline: whatever that call does,
+     * the panel waits for. Writing 7 kB to each WebSocket viewer — a blocking
+     * socket write, subject to the viewer's own backpressure — put a browser on
+     * the critical path of an LED panel. Measured on the 144x16: 14 fps with
+     * nobody watching, 3.5 fps with one browser open.
+     *
+     * So the frame is copied under [frameLock] (cheap, one arraycopy) and the
+     * fan-out runs on its own thread. Requests coalesce — if the previous
+     * publish has not finished, this frame is simply the one that gets skipped,
+     * because a preview that misses a frame is a preview, while a panel that
+     * misses a frame is a stutter.
+     */
+    private fun publishPreview() {
+        if (!previewPending.compareAndSet(false, true)) return
+        val h = previewHandler ?: run { previewPending.set(false); return }
+        h.post {
+            previewPending.set(false)
+            val frame = synchronized(frameLock) {
+                val src = frameSnapshot ?: return@synchronized null
+                PixelCanvas(src.width, src.height).also { it.copyFrom(src) }
+            } ?: return@post
             try {
-                l(shown)
-            } catch (_: Exception) {
+                server.broadcastFrame(frame)
+            } catch (e: Exception) {
+                Log.d(TAG, "preview broadcast failed", e)
+            }
+            previewListener?.let { l ->
+                try {
+                    l(frame)
+                } catch (_: Exception) {
+                }
             }
         }
-        return@synchronized canvas
     }
 
     /** The in-app preview view subscribes here. */
@@ -353,12 +445,20 @@ class ClockService : Service(), Api {
      * magnitude on the same code — a 96x16 E15 takes a frame in about 10 ms, a
      * 144x16 on firmware 21.17 takes closer to 900 ms.
      */
+    /** Frames the panel accepted per second. The number that matters. */
     @Volatile
     private var measuredFps = 0.0
     private var frameTally = 0
     private var tallyStartMs = 0L
 
-    private fun countFrame() {
+    /** Frames composited per second. Informational — it should exceed the panel. */
+    @Volatile
+    private var renderFps = 0.0
+    private var renderTally = 0
+    private var renderStartMs = 0L
+
+    /** Called once per frame the driver pulls, i.e. per frame the panel takes. */
+    private fun countPanelFrame() {
         frameTally++
         val now = android.os.SystemClock.elapsedRealtime()
         if (tallyStartMs == 0L) {
@@ -372,6 +472,28 @@ class ClockService : Service(), Api {
             tallyStartMs = now
         }
         if (tuningIndex >= 0) stepTuning(now)
+    }
+
+    /** Called once per composited frame, whether or not anything consumes it. */
+    private fun countFrame() {
+        renderTally++
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (renderStartMs == 0L) {
+            renderStartMs = now
+            return
+        }
+        val elapsed = now - renderStartMs
+        if (elapsed >= 3000L) {
+            renderFps = renderTally * 1000.0 / elapsed
+            renderTally = 0
+            renderStartMs = now
+        }
+        // With no panel attached there is nothing pulling frames, so the render
+        // loop stands in for the panel's clock — otherwise the simulated
+        // preview would report zero.
+        if (!(panelRequested && livePanel.isLive)) {
+            measuredFps = renderFps
+        }
     }
 
     // -------------------------------------------------------- panel tuning
@@ -398,6 +520,10 @@ class ClockService : Service(), Api {
      */
     private fun beginTuning(w: Int, h: Int) {
         if (w <= 0 || h <= 0) return
+        // onResolution can fire more than once for one connection — the name
+        // gives a provisional size and the set-time reply confirms it. Without
+        // this the second call restarts a probe that is already half done.
+        if (tuningIndex >= 0 && w == tuningW && h == tuningH) return
         if (labForcesFrameMode) {
             tuningNote = "forced by ipixel_lab.xml"
             Log.i(TAG, "tuning skipped: frame_mode is pinned in ipixel_lab.xml")
@@ -418,6 +544,10 @@ class ClockService : Service(), Api {
         tuningIndex = 0
         tuningFrames = 0
         tuningStartMs = android.os.SystemClock.elapsedRealtime()
+        // Dedupe would make the probe measure how still the clock is rather
+        // than how fast the panel is; a static face would score every candidate
+        // identically at the blink rate. Restored in finishTuning.
+        hub.skipUnchanged = false
         applyConfig(tuning.candidates[0])
         tuningNote = "measuring — ${tuning.candidates[0].label}"
         Log.i(TAG, "tuning ${w}x$h: trying ${tuning.candidates[0].label}")
@@ -455,6 +585,7 @@ class ClockService : Service(), Api {
 
     private fun finishTuning() {
         tuningIndex = -1
+        hub.skipUnchanged = true
         val best = tuningResults.maxByOrNull { it.second }
         if (best == null) {
             tuningNote = ""
@@ -497,7 +628,7 @@ class ClockService : Service(), Api {
             hub.setBrightness(renderer.effectiveBrightness(s, System.currentTimeMillis()))
             hub.requestFrame()
         }
-        scheduleTick(0L)
+        scheduleRender(0L)
         pushState()
         updateNotification()
     }
@@ -533,6 +664,7 @@ class ClockService : Service(), Api {
             })
             put("transport", labSummary().put("tuning", tuningNote))
             put("fps", Math.round(measuredFps * 10.0) / 10.0)
+            put("renderFps", Math.round(renderFps * 10.0) / 10.0)
             put("brightnessEffective", renderer.effectiveBrightness(s, System.currentTimeMillis()))
             put("sunriseMs", renderer.sunriseMs ?: JSONObject.NULL)
             put("sunsetMs", renderer.sunsetMs ?: JSONObject.NULL)

@@ -441,6 +441,11 @@
     // took, whereas the socket's own fps is capped by the preview rate.
     var f = (typeof serverFps === 'number') ? serverFps : 0;
     setText('st-fps', f + ' fps', f >= 6 ? 'good' : (f > 0 ? 'warn' : ''));
+    // The render rate should comfortably exceed the panel's. If it does not,
+    // the phone is the bottleneck rather than the display, which is worth
+    // being able to see at a glance.
+    var r = (state && typeof state.renderFps === 'number') ? state.renderFps : 0;
+    setText('st-render', r + ' fps', (r > f * 1.5) ? 'good' : 'warn');
     setText('st-mode', FRAME_MODES[t.frameMode] || String(t.frameMode), '');
     setText('st-tuning', t.tuning || 'not measured yet', '');
     setText('st-chunk', String(t.chunkMax || '—'), '');

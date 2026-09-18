@@ -65,6 +65,17 @@ runtime-permission path. Those need emulators before the project is called done.
   one canvas in place. Anything read off the render thread — `/api/preview.png`
   is the case that bit — takes a copy under `frameLock`, or it will occasionally
   catch the frame between `clear()` and the face being drawn.
+- **Keep work off the driver's thread.** `IPixelHub` pulls frames by calling
+  `renderFrame()` on its own thread and is a strict one-frame-at-a-time
+  pipeline, so every millisecond spent in that callback is a millisecond the
+  panel is not written to. It must do nothing but copy the finished frame.
+  Compositing belongs on the render thread, preview fan-out on the preview
+  thread. Never put a socket write on either of them.
+- **Measure the panel, not yourself.** `countPanelFrame()` is called from the
+  driver's pull and is the only honest throughput number; `countFrame()` counts
+  composited frames and will happily read 15 fps while the panel takes 2.
+  `PanelTuning` must use the former, and turns dedupe off while probing or it
+  measures how still the clock is instead of how fast the panel is.
 - Guard every API-gated call with `Build.VERSION.SDK_INT`, and prefer the older
   overload where referencing a newer class in a signature would drag it into a
   class that has to load on Android 5.
