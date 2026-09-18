@@ -570,11 +570,28 @@ class ClockService : Service(), Api {
 
     /** Called per frame while a probe is running. */
     private fun stepTuning(now: Long) {
+        if (tuningFrames == 0) {
+            // Start the clock on the candidate's FIRST ACTUAL FRAME, not when
+            // it was selected.
+            //
+            // The driver holds all traffic for three seconds after the ROM
+            // erase (WIPE_HOLD_MS), and the probe begins the moment the panel
+            // reports its size — which is inside that hold. Timing from
+            // selection charged the dead time to whichever candidate happened
+            // to run first, and that is always the driver's own tuned default.
+            // It scored 3.6 fps on a path measured at 10.3 immediately
+            // afterwards, and lost to a genuinely slower one.
+            tuningStartMs = now
+            tuningFrames = 1
+            return
+        }
         tuningFrames++
         val elapsed = now - tuningStartMs
         if (elapsed < PanelTuning.PROBE_MS && tuningFrames < PanelTuning.PROBE_FRAMES) return
 
-        val fps = tuningFrames * 1000.0 / elapsed.coerceAtLeast(1L)
+        // tuningFrames counts the first frame too, and elapsed spans from it,
+        // so the number of intervals is one fewer than the number of frames.
+        val fps = (tuningFrames - 1) * 1000.0 / elapsed.coerceAtLeast(1L)
         val config = tuning.candidates[tuningIndex]
         tuningResults.add(config to fps)
         Log.i(TAG, "tuning ${tuningW}x$tuningH: ${config.label} = ${fmt2(fps)} fps")
@@ -590,8 +607,9 @@ class ClockService : Service(), Api {
             finishTuning()
             return
         }
+        // 0 means "not started": the next candidate's own first frame starts
+        // its clock, so a mode switch costs it nothing.
         tuningFrames = 0
-        tuningStartMs = now
         applyConfig(tuning.candidates[tuningIndex])
         tuningNote = "measuring — ${tuning.candidates[tuningIndex].label}"
         pushState()

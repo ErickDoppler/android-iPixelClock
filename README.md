@@ -125,22 +125,37 @@ The exact inverse, and an eightfold difference. Transfer time is ~30 ms either
 way, so this is the panel's own processing, not the radio — nothing on the phone
 side changes it.
 
-**It is the phone and the panel together, not the panel alone.** Measured
-head-to-head — yacht-compass built for, and installed on, the same LG V500,
-driving the same 144×16 panel, its own instrumentation:
+**It is the phone and the panel together, not the panel alone.** The same
+144×16 panel, the same driver, two phones:
 
-```
-yacht-compass   fps=1.05  mode=2   transfer=65ms  panel=1212ms
-iPixel Clock    fps=7.9   mode=0   (after auto-tuning)
-```
+| | Cat S62 Pro (BT 5) | LG V500 (2013, BT 4.0) |
+|---|---|---|
+| LE 2M PHY | negotiated (`status=0`) | refused (`status=6`) |
+| live `0x0000` | **10–11 fps** (`panel≈50ms`) | 1.0 fps (`panel≈850ms`) |
+| PNG `0x0002` | ~4.6 fps | **2.6 fps** |
 
-Both run the identical driver at its identical compiled defaults. The tuned
-default loses here because this tablet is a 2013 BT 4.0 device: it refuses the
-LE 2M PHY (`PHY update ... status=6` in the log) and a 6921-byte raw frame
-crawls, while a 250-byte PNG does not. The same driver on a modern phone gets
-the 11–16 fps the original notes record. So a figure measured on one
-phone/panel pair says nothing about another, which is the whole argument for
-measuring rather than hardcoding.
+Cross-checked against yacht-compass, built for and installed on both devices,
+reporting through the same instrumentation: 11.3 fps on the S62, 1.05 fps on
+the tablet. So the two apps agree, and the *answer differs by phone* — the
+driver's tuned default (live `0x0000`) is far and away the best on a modern
+radio, and far and away the worst on a 2013 one, because a 6921-byte raw frame
+needs the 2M PHY and a 250-byte PNG does not.
+
+That is the whole argument for measuring rather than hardcoding. It is also
+why the probe has to be careful: see the warning below.
+
+### The probe has to time its own frames
+
+The driver holds **all** traffic for three seconds after the ROM erase
+(`WIPE_HOLD_MS`), and the probe starts when the panel reports its size — which
+is inside that hold. Timing a candidate from the moment it was *selected*
+therefore charged the dead time to whichever ran first, and that is always the
+driver's own tuned default. On the S62 it scored the live path at 3.6 fps, lost
+to PNG at 4.6, and left the clock running at a third of what the panel could
+do — 10.3 fps, measured on the same path minutes later.
+
+Each candidate's clock now starts on its own first frame. Do not "simplify"
+that back.
 
 So `led/PanelTuning.kt` probes each candidate for a few seconds the first time it
 sees a panel size, keeps the fastest, and remembers it in
@@ -215,8 +230,8 @@ the preview can never slow the panel down, and neither can a transition.
 The diagnostics card reports both rates. **To panel** is the honest throughput,
 counted from the driver's own pull; **Rendered** is how fast frames are being
 composited. Rendered should comfortably exceed to-panel — if it does not, the
-phone is the bottleneck rather than the display. On the 144×16 with a rainbow
-and a transition running: rendered 15.5 fps, to panel 2.7 fps.
+phone is the bottleneck rather than the display. On the 144×16 with a rainbow and a
+transition running, on the S62: rendered ~15 fps, to panel ~10.
 
 ## The clock face
 

@@ -112,3 +112,17 @@ also exactly the `/api/state` and `/api/settings` shape. No mapping layer.
 - Sessions are in memory, so restarting the service signs every browser out.
 - On a panel tuned to the PNG path, a full-screen background will cost
   throughput — the frame stops compressing. Re-measure when backgrounds land.
+
+## The frame-rate trap
+
+`PanelTuning` must time each candidate from **its own first frame**, never from
+the moment it was selected. The driver holds all traffic for three seconds after
+the ROM erase, the probe begins inside that hold, and timing from selection
+charges the dead time to whichever candidate runs first — always the driver's
+tuned default. That bug scored the live `0x0000` path at 3.6 fps on the S62 and
+picked a 4.6 fps alternative, when the same path measured 10.3 fps minutes
+later. yacht-compass, which hardcodes the default, was getting 11.3.
+
+The right answer genuinely differs by phone: live `0x0000` is ~10 fps on a BT 5
+radio and ~1 fps on a 2013 BT 4.0 one, because a 6921-byte raw frame needs the
+LE 2M PHY and a 250-byte PNG does not. So keep the probe — just keep it honest.
