@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#05060A">
+<title>iPixel Clock</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div class="scanlines"></div>
+<div class="grid-horizon"></div>
+
+<div class="login-wrap">
+  <h1 class="brand"><span class="b1">iPIXEL</span><span class="b2">CLOCK</span></h1>
+  <form id="f" autocomplete="off">
+    <input type="password" id="pw" placeholder="PASSWORD" autofocus>
+    <button type="submit" class="neon">UNLOCK</button>
+  </form>
+  <div class="login-error" id="err"></div>
+</div>
+
+<script>
+/* ES5 only: this page has to render on an ancient WebView too. */
+(function () {
+  var form = document.getElementById('f');
+  var pw = document.getElementById('pw');
+  var err = document.getElementById('err');
+
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    err.innerHTML = '';
+    var x = new XMLHttpRequest();
+    x.open('POST', '/api/login', true);
+    x.setRequestHeader('Content-Type', 'application/json');
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4) return;
+      if (x.status === 200) {
+        location.href = '/';
+        return;
+      }
+      var msg = 'Refused.';
+      try { msg = JSON.parse(x.responseText).error || msg; } catch (e2) {}
+      err.innerHTML = msg;
+      pw.value = '';
+      pw.focus();
+    };
+    x.send(JSON.stringify({ password: pw.value }));
+    return false;
+  };
+})();
+</script>
+</body>
+</html>

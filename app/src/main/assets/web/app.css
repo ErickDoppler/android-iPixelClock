@@ -1,0 +1,467 @@
+/* iPixel Clock web interface.
+ *
+ * Deliberately old-WebView-safe: flexbox, transforms, gradients, box-shadow and
+ * transitions only. No CSS grid, no custom properties, no :is()/:where(), no
+ * clamp(). A phone still on Android 5 with a never-updated WebView is roughly
+ * Chrome 37, and everything here works there. The palette is repeated literally
+ * for the same reason.
+ *
+ * Palette: void #05060A, panel #0B0E16, cyan #00F0FF, magenta #FF2BD1,
+ * amber #FFB000, dim #6A7A90, text #D6E6F2.
+ */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #05060A;
+  color: #D6E6F2;
+  font-family: "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  font-size: 14px;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: rgba(0,240,255,0.15);
+}
+
+body { padding-bottom: 42px; }
+
+/* ---------------------------------------------------------------- ambience */
+
+/* A faint horizon grid, receding. Pure CSS so there is no image to ship. */
+.grid-horizon {
+  position: fixed;
+  left: -50%; right: -50%; bottom: 0;
+  height: 45%;
+  background-image:
+    repeating-linear-gradient(to right, rgba(0,240,255,0.10) 0 1px, transparent 1px 64px),
+    repeating-linear-gradient(to bottom, rgba(255,43,209,0.09) 0 1px, transparent 1px 44px);
+  -webkit-transform: perspective(240px) rotateX(62deg);
+  transform: perspective(240px) rotateX(62deg);
+  -webkit-transform-origin: bottom center;
+  transform-origin: bottom center;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.55;
+}
+
+/* Scanlines over everything. */
+.scanlines {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0,0,0,0) 0 2px,
+    rgba(0,0,0,0.22) 2px 3px
+  );
+  pointer-events: none;
+  z-index: 100;
+}
+
+header, main, nav, footer, .reminder, .preview-block { position: relative; z-index: 1; }
+
+/* -------------------------------------------------------------------- bar */
+
+.bar {
+  display: -webkit-box; display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: space-between; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(0,240,255,0.22);
+  background: rgba(11,14,22,0.92);
+}
+
+.brand {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: 3px;
+  font-weight: 700;
+}
+.brand .b1 { color: #00F0FF; text-shadow: 0 0 10px rgba(0,240,255,0.7); }
+.brand .b2 { color: #FF2BD1; text-shadow: 0 0 10px rgba(255,43,209,0.6); margin-left: 4px; }
+
+.bar-right {
+  display: -webkit-box; display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+}
+
+.chip {
+  color: #6A7A90;
+  font-size: 11px;
+  border: 1px solid rgba(106,122,144,0.4);
+  padding: 2px 7px;
+  margin-right: 8px;
+  letter-spacing: 1px;
+}
+
+/* ---------------------------------------------------------------- preview */
+
+.preview-block { padding: 14px 14px 6px; text-align: center; }
+.preview-block.hidden { display: none; }
+
+.preview-shell {
+  background: #07090F;
+  border: 1px solid rgba(0,240,255,0.28);
+  box-shadow: 0 0 22px rgba(0,240,255,0.14), inset 0 0 30px rgba(0,0,0,0.85);
+  padding: 8px;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* A panel hung as a vertical banner is a tall sliver. Left in a full-width
+   box it sits in a sea of dead space, so the frame hugs it instead. */
+.preview-shell.portrait {
+  display: inline-block;
+  max-width: 100%;
+}
+
+#preview {
+  display: block;
+  margin: 0 auto;
+  width: 100%;
+  height: auto;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: pixelated;
+}
+
+.preview-caption {
+  display: -webkit-box; display: -webkit-flex; display: flex;
+  -webkit-justify-content: space-between; justify-content: space-between;
+  padding: 6px 2px 0;
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
+.caption-main { color: #00F0FF; }
+.caption-main.sim { color: #FFB000; }
+.caption-sub { color: #6A7A90; }
+
+/* --------------------------------------------------------------- reminder */
+
+.reminder {
+  margin: 0 14px 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,176,0,0.55);
+  background: rgba(255,176,0,0.08);
+  color: #FFB000;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.reminder.hidden { display: none; }
+.reminder button { margin: 8px 6px 0 0; }
+
+/* ------------------------------------------------------------------- tabs */
+
+.tabs {
+  display: -webkit-box; display: -webkit-flex; display: flex;
+  overflow-x: auto;
+  border-bottom: 1px solid rgba(0,240,255,0.18);
+  background: rgba(5,6,10,0.9);
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab {
+  -webkit-flex: 1 0 auto; flex: 1 0 auto;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #6A7A90;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 12px 14px;
+  cursor: pointer;
+  -webkit-transition: color .15s, border-color .15s;
+  transition: color .15s, border-color .15s;
+}
+.tab.active {
+  color: #00F0FF;
+  border-bottom-color: #00F0FF;
+  text-shadow: 0 0 8px rgba(0,240,255,0.6);
+}
+
+/* ------------------------------------------------------------------ pages */
+
+.page { display: none; padding: 14px; }
+.page.active { display: block; }
+
+.card {
+  background: rgba(11,14,22,0.88);
+  border: 1px solid rgba(0,240,255,0.16);
+  border-left: 2px solid #FF2BD1;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: #FF2BD1;
+  font-weight: 700;
+}
+
+.hint {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: #6A7A90;
+}
+
+/* ------------------------------------------------------------------- rows */
+
+.row {
+  display: -webkit-box; display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid rgba(106,122,144,0.12);
+}
+.row:last-child { border-bottom: none; }
+.row.sub { padding-left: 16px; }
+.row.hidden { display: none; }
+
+.row label:first-child {
+  -webkit-flex: 1 1 auto; flex: 1 1 auto;
+  font-size: 12px;
+  color: #D6E6F2;
+  padding-right: 10px;
+}
+
+.num {
+  min-width: 44px;
+  text-align: right;
+  font-size: 12px;
+  color: #00F0FF;
+}
+
+/* ----------------------------------------------------------------- inputs */
+
+select, input[type=text], input[type=number] {
+  background: #05060A;
+  border: 1px solid rgba(0,240,255,0.3);
+  color: #00F0FF;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 7px 8px;
+  min-width: 130px;
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0;
+}
+input[type=text] { min-width: 150px; }
+
+select:focus, input:focus {
+  outline: none;
+  border-color: #00F0FF;
+  box-shadow: 0 0 10px rgba(0,240,255,0.45);
+}
+
+input[type=color] {
+  width: 52px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid rgba(0,240,255,0.3);
+  background: #05060A;
+  cursor: pointer;
+}
+
+input[type=range] {
+  -webkit-flex: 1 1 auto; flex: 1 1 auto;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  background: rgba(106,122,144,0.35);
+  margin: 0 10px;
+  outline: none;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px; height: 15px;
+  background: #00F0FF;
+  border-radius: 50%;
+  box-shadow: 0 0 9px rgba(0,240,255,0.9);
+  cursor: pointer;
+}
+input[type=range]::-moz-range-thumb {
+  width: 15px; height: 15px;
+  background: #00F0FF;
+  border: none;
+  border-radius: 50%;
+  box-shadow: 0 0 9px rgba(0,240,255,0.9);
+}
+
+/* The switch */
+.switch { position: relative; display: inline-block; width: 44px; height: 22px; }
+.switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+.switch span {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #121826;
+  border: 1px solid rgba(106,122,144,0.5);
+  -webkit-transition: .18s; transition: .18s;
+  cursor: pointer;
+}
+.switch span:before {
+  content: "";
+  position: absolute;
+  width: 14px; height: 14px;
+  left: 3px; top: 3px;
+  background: #6A7A90;
+  -webkit-transition: .18s; transition: .18s;
+}
+.switch input:checked + span {
+  border-color: #00F0FF;
+  box-shadow: 0 0 10px rgba(0,240,255,0.35);
+}
+.switch input:checked + span:before {
+  -webkit-transform: translateX(22px);
+  transform: translateX(22px);
+  background: #00F0FF;
+  box-shadow: 0 0 8px rgba(0,240,255,0.9);
+}
+
+/* ---------------------------------------------------------------- buttons */
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.neon, .ghost {
+  border: 1px solid #00F0FF;
+  background: rgba(0,240,255,0.08);
+  color: #00F0FF;
+  font-size: 11px;
+  letter-spacing: 2px;
+  padding: 9px 14px;
+  -webkit-transition: background .15s, box-shadow .15s;
+  transition: background .15s, box-shadow .15s;
+}
+.neon:hover, .neon:active {
+  background: rgba(0,240,255,0.2);
+  box-shadow: 0 0 14px rgba(0,240,255,0.5);
+}
+.ghost {
+  border-color: rgba(106,122,144,0.55);
+  background: none;
+  color: #6A7A90;
+}
+.ghost:hover, .ghost:active { color: #D6E6F2; border-color: #D6E6F2; }
+.small { padding: 6px 10px; font-size: 10px; }
+
+.buttons { margin: 12px 0 4px; }
+.buttons button { margin-right: 8px; }
+
+/* ------------------------------------------------------------ orientation */
+
+.orient {
+  display: -webkit-box; display: -webkit-flex; display: flex;
+  -webkit-align-items: center; align-items: center;
+  margin: 10px 0 4px;
+}
+.orient-buttons { -webkit-flex: 1 1 auto; flex: 1 1 auto; }
+.rot {
+  border: 1px solid rgba(106,122,144,0.5);
+  background: none;
+  color: #6A7A90;
+  font-size: 11px;
+  padding: 7px 10px;
+  margin: 0 6px 6px 0;
+}
+.rot.active {
+  border-color: #00F0FF;
+  color: #00F0FF;
+  box-shadow: 0 0 10px rgba(0,240,255,0.35);
+}
+
+.orient-figure {
+  width: 92px; height: 92px;
+  position: relative;
+  -webkit-flex: 0 0 92px; flex: 0 0 92px;
+}
+/* The little panel turns with the setting, so a vertical mount is obvious at a
+   glance instead of being inferred from a number. */
+.orient-panel {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 72px; height: 12px;
+  margin: -6px 0 0 -36px;
+  background: #07090F;
+  border: 1px solid #00F0FF;
+  box-shadow: 0 0 12px rgba(0,240,255,0.35);
+  color: #00F0FF;
+  font-size: 8px;
+  line-height: 10px;
+  text-align: center;
+  -webkit-transition: -webkit-transform .25s;
+  transition: transform .25s;
+}
+.orient-panel b { font-weight: 400; letter-spacing: 1px; }
+
+/* ------------------------------------------------------------------ status */
+
+.status-grid { font-size: 12px; line-height: 1.9; }
+.status-grid .kv { display: block; }
+.status-grid .k {
+  display: inline-block;
+  width: 84px;
+  color: #6A7A90;
+}
+.status-grid .v { color: #D6E6F2; }
+.status-grid .v.good { color: #00F0FF; }
+.status-grid .v.warn { color: #FFB000; }
+.status-grid .v.bad { color: #FF2BD1; }
+
+/* ------------------------------------------------------------------ footer */
+
+.conn {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  padding: 8px 14px;
+  font-size: 10px;
+  letter-spacing: 2px;
+  background: rgba(5,6,10,0.96);
+  border-top: 1px solid rgba(0,240,255,0.2);
+  color: #6A7A90;
+  z-index: 50;
+}
+.conn.ok { color: #00F0FF; }
+.conn.bad { color: #FF2BD1; }
+
+/* ------------------------------------------------------------- login page */
+
+.login-wrap {
+  max-width: 340px;
+  margin: 14vh auto 0;
+  padding: 0 18px;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.login-wrap h1 { font-size: 20px; letter-spacing: 4px; }
+.login-wrap input[type=password] {
+  width: 100%;
+  background: #05060A;
+  border: 1px solid rgba(0,240,255,0.35);
+  color: #00F0FF;
+  font-family: inherit;
+  font-size: 15px;
+  padding: 12px;
+  text-align: center;
+  letter-spacing: 3px;
+  margin: 18px 0 12px;
+  border-radius: 0;
+}
+.login-wrap button { width: 100%; padding: 12px; }
+.login-error { color: #FF2BD1; font-size: 12px; min-height: 18px; margin-top: 12px; }
+.locked-note { color: #FFB000; font-size: 12px; line-height: 1.7; margin-top: 18px; }
+
+/* --------------------------------------------------------------- wide view */
+
+@media (min-width: 760px) {
+  main {
+    max-width: 820px;
+    margin: 0 auto;
+  }
+  .preview-block { max-width: 820px; margin: 0 auto; }
+  .reminder { max-width: 792px; margin-left: auto; margin-right: auto; }
+}

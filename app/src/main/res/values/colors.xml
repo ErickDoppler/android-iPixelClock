@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The cyberpunk palette, shared with the web UI's CSS variables. -->
+    <color name="bg_void">#FF05060A</color>
+    <color name="panel">#FF0B0E16</color>
+    <color name="neon_cyan">#FF00F0FF</color>
+    <color name="neon_magenta">#FFFF2BD1</color>
+    <color name="neon_amber">#FFFFB000</color>
+    <color name="dim">#FF6A7A90</color>
+    <color name="text">#FFD6E6F2</color>
+</resources>

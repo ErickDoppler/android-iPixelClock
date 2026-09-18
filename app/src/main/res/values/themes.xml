@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- No AppCompat: the shell is self-drawn Views plus a WebView, so the
+         platform theme with no title bar is all it needs. -->
+    <style name="Theme.IPixelClock" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/bg_void</item>
+        <item name="android:statusBarColor">@color/bg_void</item>
+        <item name="android:navigationBarColor">@color/bg_void</item>
+        <item name="android:colorBackground">@color/bg_void</item>
+        <item name="android:textColor">@color/text</item>
+    </style>
+</resources>
