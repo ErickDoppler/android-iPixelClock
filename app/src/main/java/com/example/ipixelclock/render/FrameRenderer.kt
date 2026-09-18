@@ -125,7 +125,11 @@ class FrameRenderer {
         if (page == InfoPages.Page.TIME || data == null) {
             face.draw(scene, settings, nowMs, coverage * fade)
         } else {
-            InfoPages.draw(scene, page, settings, data, nowMs, coverage * fade)
+            InfoPages.draw(
+                scene, page, settings, data, nowMs, coverage * fade,
+                elapsedInPageMs = nowMs - pageSinceMs,
+                pageDurationMs = InfoPages.durationOf(page, data.hasTelemetry)
+            )
         }
 
         // 5. Software brightness, on top of the panel's own hardware dimming.

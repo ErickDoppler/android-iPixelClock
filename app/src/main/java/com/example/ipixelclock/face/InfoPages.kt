@@ -118,118 +118,129 @@ object InfoPages {
         settings: Settings,
         data: DataHub,
         nowMs: Long,
-        coverage: Float
+        coverage: Float,
+        elapsedInPageMs: Long,
+        pageDurationMs: Long
     ) {
-        when (page) {
-            Page.DATE -> drawLines(canvas, settings, coverage, dateLines(settings, nowMs))
-            Page.CONDITIONS -> drawConditions(canvas, settings, data, coverage)
-            Page.TELEMETRY -> drawLines(canvas, settings, coverage, telemetryLines(data))
-            Page.TIME -> {}
+        val icon = if (page == Page.CONDITIONS) {
+            data.weather?.let { WeatherService.icon(it.code) }
+        } else null
+
+        val line = when (page) {
+            Page.DATE -> dateLine(settings, nowMs)
+            Page.CONDITIONS -> conditionsLine(settings, data)
+            Page.TELEMETRY -> telemetryLine(data)
+            Page.TIME -> return
         }
+        if (line.isEmpty()) return
+
+        drawBigLine(canvas, settings, coverage, line, icon, elapsedInPageMs, pageDurationMs)
+    }
+
+    /** How long a page holds the panel, so a scroll can be paced to fit it. */
+    fun durationOf(page: Page, hasTelemetry: Boolean): Long = when (page) {
+        Page.TIME -> TIME_MS
+        Page.DATE -> DATE_MS
+        Page.CONDITIONS -> if (hasTelemetry) SHORT_MS else LONG_MS
+        Page.TELEMETRY -> SHORT_MS
     }
 
     // ------------------------------------------------------------- the pages
 
-    private fun dateLines(settings: Settings, nowMs: Long): List<String> {
+    private fun dateLine(settings: Settings, nowMs: Long): String {
         val cal = Calendar.getInstance().apply { timeInMillis = nowMs }
         val d = cal.get(Calendar.DAY_OF_MONTH)
         val m = cal.get(Calendar.MONTH) + 1
-        val y = cal.get(Calendar.YEAR)
         val dow = WEEKDAYS[(cal.get(Calendar.DAY_OF_WEEK) - 1).coerceIn(0, 6)]
 
         val date = when (settings.dateFormat) {
             "MDY" -> String.format(Locale.US, "%02d.%02d", m, d)
             "YMD" -> String.format(Locale.US, "%02d-%02d", m, d)
-            "WEEKDAY" -> dow
+            "WEEKDAY" -> return dow
             else -> String.format(Locale.US, "%02d.%02d", d, m)
         }
-        // Two lines where there is room: the weekday reads at a glance and the
-        // numbers are what you actually wanted.
-        return if (settings.dateFormat == "WEEKDAY") {
-            listOf(dow, String.format(Locale.US, "%02d.%02d", d, m))
-        } else {
-            listOf(dow, date)
-        }.also { if (y < 1980) return listOf(date) }
+        return "$dow $date"
     }
 
-    private fun telemetryLines(data: DataHub): List<String> {
-        val out = ArrayList<String>(2)
-        data.pressureHpa?.let { out.add("${it.roundToInt()} HPA") }
-        data.humidityPercent?.let { out.add("$it% RH") }
-        return out
+    private fun telemetryLine(data: DataHub): String {
+        val parts = ArrayList<String>(2)
+        data.pressureHpa?.let { parts.add("${it.roundToInt()} HPA") }
+        data.humidityPercent?.let { parts.add("$it% RH") }
+        return parts.joinToString("  ")
     }
 
-    private fun drawConditions(
-        canvas: PixelCanvas,
-        settings: Settings,
-        data: DataHub,
-        coverage: Float
-    ) {
-        val w = data.weather
-        val lines = ArrayList<String>(2)
-        if (w != null) {
+    private fun conditionsLine(settings: Settings, data: DataHub): String {
+        val parts = ArrayList<String>(3)
+        data.weather?.let { w ->
             val t = if (settings.metricUnits) w.temperatureC else w.temperatureC * 9 / 5 + 32
-            lines.add("${t.roundToInt()}°" + if (settings.metricUnits) "C" else "F")
+            parts.add("${t.roundToInt()}°" + if (settings.metricUnits) "C" else "F")
         }
-        if (settings.showSunrise || settings.showSunset) {
-            val parts = ArrayList<String>(2)
-            if (settings.showSunrise) data.sunriseMs?.let { parts.add("^" + hhmm(it)) }
-            if (settings.showSunset) data.sunsetMs?.let { parts.add("v" + hhmm(it)) }
-            if (parts.isNotEmpty()) lines.add(parts.joinToString(" "))
-        }
-        if (lines.isEmpty()) return
-
-        // The icon sits to the left of the text when there is room for it.
-        val icon = w?.let { WeatherService.icon(it.code) }
-        drawLines(canvas, settings, coverage, lines, icon)
+        if (settings.showSunrise) data.sunriseMs?.let { parts.add("^" + hhmm(it)) }
+        if (settings.showSunset) data.sunsetMs?.let { parts.add("v" + hhmm(it)) }
+        return parts.joinToString("  ")
     }
 
     // ------------------------------------------------------------ the layout
 
     /**
-     * Centres one or two lines, with an optional icon to their left. Picks the
-     * larger face when both lines fit at 7 rows, otherwise the 3x5.
+     * One line, as large as the panel's height allows, scrolling when it is too
+     * long to fit across.
+     *
+     * The face is SYSTEM scaled by a whole multiple rather than one of the art
+     * families, because those carry digits and punctuation only — a weekday
+     * needs letters, and mixing two faces inside one line looks like a mistake.
+     * Whole multiples only: a fractionally scaled 7-row font has broken stems.
      */
-    private fun drawLines(
+    private fun drawBigLine(
         canvas: PixelCanvas,
         settings: Settings,
         coverage: Float,
-        lines: List<String>,
-        icon: WeatherService.Icon? = null
+        line: String,
+        icon: WeatherService.Icon?,
+        elapsedInPageMs: Long,
+        pageDurationMs: Long
     ) {
-        if (lines.isEmpty()) return
-        val big = PixelFonts.SYSTEM.shortest
-        val small = PixelFonts.NARROW.shortest
-        val iconW = if (icon != null) ICON_W + 2 else 0
+        val font = bigFont(canvas.height)
+        val iconScale = (canvas.height / ICON_H).coerceIn(1, 3)
+        val iconW = if (icon != null) ICON_W * iconScale + font.spacing * 2 else 0
 
-        val gap = 2
-        val font: PixelFont = when {
-            lines.size == 1 && big.measure(lines[0]) + iconW <= canvas.width &&
-                big.height <= canvas.height -> big
+        val textW = font.measure(line)
+        val total = textW + iconW
+        val y = ((canvas.height - font.height) / 2).coerceAtLeast(0)
 
-            lines.size >= 2 &&
-                lines.all { big.measure(it) + iconW <= canvas.width } &&
-                big.height * 2 + gap <= canvas.height -> big
-
-            else -> small
+        val x0 = if (total <= canvas.width) {
+            // Fits: just centre it.
+            (canvas.width - total) / 2
+        } else {
+            // Does not fit: pace the travel so the whole line has been past the
+            // edge by the time the page hands the panel back. A fixed speed
+            // would either crawl and cut off the end, or race and be
+            // unreadable — the page duration is what has to be satisfied.
+            val overflow = total - canvas.width
+            val hold = HOLD_MS.coerceAtMost(pageDurationMs / 4)
+            val travel = (pageDurationMs - hold * 2).coerceAtLeast(400L)
+            val t = ((elapsedInPageMs - hold).coerceIn(0L, travel)).toFloat() / travel
+            -(overflow * t).toInt()
         }
-
-        val block = font.height * lines.size + gap * (lines.size - 1)
-        var y = ((canvas.height - block) / 2).coerceAtLeast(0)
-        val widest = lines.maxOf { font.measure(it) }
-        val total = widest + iconW
-        val left = ((canvas.width - total) / 2).coerceAtLeast(0)
 
         if (icon != null) {
-            drawIcon(canvas, icon, left, ((canvas.height - ICON_H) / 2).coerceAtLeast(0), coverage)
+            drawIcon(
+                canvas, icon, x0,
+                ((canvas.height - ICON_H * iconScale) / 2).coerceAtLeast(0),
+                coverage, iconScale
+            )
         }
-        val textLeft = left + iconW
-        for (line in lines) {
-            val x = textLeft + (widest - font.measure(line)) / 2
-            font.draw(canvas, line, x, y, settings.colorPrimary, coverage)
-            y += font.height + gap
-        }
+        font.draw(canvas, line, x0 + iconW, y, settings.colorPrimary, coverage)
     }
+
+    /** SYSTEM at the largest whole multiple that fits the panel's height. */
+    private fun bigFont(height: Int): PixelFont {
+        val base = PixelFonts.SYSTEM.shortest
+        val factor = (height / base.height).coerceAtLeast(1)
+        return if (factor >= 2) base.scaled(factor) else base
+    }
+
+    private const val HOLD_MS = 600L
 
     private fun hhmm(ms: Long): String {
         val cal = Calendar.getInstance().apply { timeInMillis = ms }
@@ -271,7 +282,8 @@ object InfoPages {
         icon: WeatherService.Icon,
         x0: Int,
         y0: Int,
-        coverage: Float
+        coverage: Float,
+        scale: Int = 1
     ) {
         val g = ICONS[icon] ?: return
         val color = when (icon) {
@@ -282,8 +294,17 @@ object InfoPages {
         }
         for (col in g.indices) {
             for (row in 0 until ICON_H) {
-                if (g[col] and (1 shl row) != 0) {
-                    canvas.blendA(x0 + col, y0 + row, color, coverage)
+                if (g[col] and (1 shl row) == 0) continue
+                // Scaled to match the line's font, so the icon does not sit as
+                // a speck beside 14-row text.
+                for (dy in 0 until scale) {
+                    for (dx in 0 until scale) {
+                        canvas.blendA(
+                            x0 + col * scale + dx,
+                            y0 + row * scale + dy,
+                            color, coverage
+                        )
+                    }
                 }
             }
         }
