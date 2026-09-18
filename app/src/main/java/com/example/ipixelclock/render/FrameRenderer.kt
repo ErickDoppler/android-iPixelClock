@@ -2,7 +2,9 @@ package com.example.ipixelclock.render
 
 import com.example.ipixelclock.bg.BackgroundEngine
 import com.example.ipixelclock.face.ClockFace
+import com.example.ipixelclock.data.DataHub
 import com.example.ipixelclock.face.ColorModes
+import com.example.ipixelclock.face.InfoPages
 import com.example.ipixelclock.settings.Settings
 
 /**
@@ -46,6 +48,10 @@ class FrameRenderer {
 
     /** Wall-clock of the last frame, for the effects' delta timing. */
     private var lastFrameMs = 0L
+
+    /** Which page is showing, and since when, so the fade is per page. */
+    private var lastPage = InfoPages.Page.TIME
+    private var pageSinceMs = 0L
 
     /** Set by the service so the sun-driven policies have something to go on. */
     @Volatile
@@ -102,12 +108,25 @@ class FrameRenderer {
         //    layer is black, which is exactly the "off" effect.
         drawBackground(scene, settings, nowMs, dtMs)
 
-        // 3. The clock face.
+        // 3/4. The clock face, or one of the info pages taking its turn. They
+        //      share the panel rather than competing for it: on a 16-row strip
+        //      there is no room for both, so the rotation gives the readouts a
+        //      few seconds a minute and hands it straight back.
         val coverage = face.visibility(settings, nowMs, sunriseMs, sunsetMs)
-        face.draw(scene, settings, nowMs, coverage, reservedBottom = infoRowHeight(scene, settings))
+        val page = currentPage(settings, nowMs)
+        if (page != lastPage) {
+            lastPage = page
+            pageSinceMs = nowMs
+        }
+        // Fade measured from when this page began, not from the wall clock.
+        val fade = InfoPages.fadeIn(nowMs - pageSinceMs)
 
-        // 4. The info row. Phase 5 fills this in.
-        drawInfoRow(scene, settings, nowMs)
+        val data = dataHub
+        if (page == InfoPages.Page.TIME || data == null) {
+            face.draw(scene, settings, nowMs, coverage * fade)
+        } else {
+            InfoPages.draw(scene, page, settings, data, nowMs, coverage * fade)
+        }
 
         // 5. Software brightness, on top of the panel's own hardware dimming.
         scene.scaleBrightness(ColorModes.softwareBrightness(effectiveBrightness(settings, nowMs)))
@@ -152,16 +171,23 @@ class FrameRenderer {
         )
     }
 
-    private fun infoRowHeight(canvas: PixelCanvas, settings: Settings): Int {
-        // Phase 5: a second zone only exists where there is room for one, which
-        // in practice means the 32-row panels and vertical mounts.
-        val wants = settings.showDate || settings.showWeather ||
-            settings.showSunrise || settings.showSunset
-        return if (wants && canvas.height >= 21) 6 else 0
-    }
+    /** Supplies the readouts. Null before the service has built one. */
+    @Volatile
+    var dataHub: DataHub? = null
 
-    private fun drawInfoRow(canvas: PixelCanvas, settings: Settings, nowMs: Long) {
-        // Phase 5.
+    /**
+     * Which page is due, given what is actually available.
+     *
+     * A page is only offered when its data exists — otherwise the panel would
+     * cut away from the clock to show "---", which is worse than not rotating.
+     */
+    fun currentPage(settings: Settings, nowMs: Long): InfoPages.Page {
+        val data = dataHub ?: return InfoPages.Page.TIME
+        val hasConditions = (settings.showWeather && data.weather != null) ||
+            ((settings.showSunrise || settings.showSunset) &&
+                (data.sunriseMs != null || data.sunsetMs != null))
+        val hasTelemetry = data.hasTelemetry
+        return InfoPages.pageAt(nowMs, settings.showDate, hasConditions, hasTelemetry)
     }
 
 }

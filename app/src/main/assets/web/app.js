@@ -36,6 +36,7 @@
     }
     wireTabs();
     wireControls();
+    wireCitySearch();
     getJson('/api/schema', function (err, data) {
       if (!err) { schema = data; buildOptions(); }
       connect();
@@ -195,7 +196,7 @@
   // -------------------------------------------------------- the controls
 
   // Every plain setting: id in the DOM == key in the settings JSON.
-  var CHECKS = ['displayOn', 'brightnessAuto', 'mirrorH', 'mirrorV', 'hour24',
+  var CHECKS = ['displayOn', 'brightnessAuto', 'mirrorH', 'mirrorV', 'hour24', 'metricUnits',
     'showSeconds', 'blinkColon', 'leadingZero', 'showDate', 'showWeather',
     'showSunrise', 'showSunset', 'startOnBoot'];
 
@@ -391,6 +392,7 @@
     applyPanel(s.panel || {});
     applyServer(s.server || {});
     applyTransport(s.transport || {}, s.fps);
+    applyReadouts(s.readouts);
 
     suppress = false;
   }
@@ -451,6 +453,87 @@
     setText('st-chunk', String(t.chunkMax || '—'), '');
     setText('st-phy', t.phy2m ? 'requested' : 'off', '');
     setText('st-floor', (t.minIntervalMs || 0) + ' ms', '');
+  }
+
+  var PAGE_NAMES = {
+    TIME: 'the time', DATE: 'the date',
+    CONDITIONS: 'conditions', TELEMETRY: 'pressure / humidity'
+  };
+
+  function applyReadouts(r) {
+    if (!r) return;
+    setText('st-page', PAGE_NAMES[r.page] || r.page, 'good');
+
+    if (r.weather) {
+      setText('st-weather',
+        Math.round(r.weather.tempC) + '°C, ' + r.weather.description, 'good');
+    } else {
+      setText('st-weather',
+        r.hasLocation ? 'no reading yet' : 'needs a location', 'warn');
+    }
+
+    if (r.hasTelemetry) {
+      var bits = [];
+      if (r.pressureHpa !== null) bits.push(Math.round(r.pressureHpa) + ' hPa');
+      if (r.humidity !== null) bits.push(r.humidity + '% RH');
+      // Worth saying which: a barometer measures this room, the forecast
+      // measures the region, and they are not the same claim.
+      bits.push(r.barometer ? '(this phone)' : '(forecast)');
+      setText('st-telemetry', bits.join('  '), 'good');
+    } else {
+      setText('st-telemetry', 'none — conditions get 10s instead', 'warn');
+    }
+
+    var set = state && state.settings ? state.settings : null;
+    if (set) {
+      setText('st-city', set.cityName ? set.cityName : "the phone's location",
+        set.cityName ? 'good' : '');
+    }
+    setText('st-pos', r.hasLocation
+      ? (r.lat.toFixed(3) + ', ' + r.lon.toFixed(3))
+      : 'unknown', r.hasLocation ? 'good' : 'warn');
+  }
+
+  function wireCitySearch() {
+    var box = $('citySearch');
+    var out = $('city-results');
+    if (!box || !out) return;
+
+    box.onkeydown = function (e) {
+      if (e.keyCode !== 13) return;
+      var q = box.value;
+      if (!q) return;
+      out.innerHTML = '<span class="hint">searching…</span>';
+      getJson('/api/geocode?q=' + encodeURIComponent(q), function (err, data) {
+        if (err || !data || !data.results || !data.results.length) {
+          out.innerHTML = '<span class="hint">nothing found</span>';
+          return;
+        }
+        out.innerHTML = '';
+        for (var i = 0; i < data.results.length; i++) {
+          out.appendChild(cityRow(data.results[i]));
+        }
+      });
+    };
+
+    $('city-clear').onclick = function () {
+      // Null clears the stored coordinates; the hub falls back to the fix.
+      patch({ cityName: '', cityLat: null, cityLon: null });
+      out.innerHTML = '';
+      box.value = '';
+    };
+  }
+
+  function cityRow(p) {
+    var b = document.createElement('button');
+    b.className = 'ghost city';
+    b.innerHTML = p.name + (p.country ? ('  ' + p.country) : '');
+    b.onclick = function () {
+      patch({ cityName: p.name, cityLat: p.lat, cityLon: p.lon });
+      $('city-results').innerHTML = '';
+      $('citySearch').value = '';
+    };
+    return b;
   }
 
   function showFontBlurb(id) {

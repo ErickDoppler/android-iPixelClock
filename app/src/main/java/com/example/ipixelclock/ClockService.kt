@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.util.Log
+import com.example.ipixelclock.data.DataHub
 import com.example.ipixelclock.led.IPixelHub
 import com.example.ipixelclock.led.PanelTuning
 import com.example.ipixelclock.led.PanelTuning.Companion.fmt1
@@ -54,6 +55,7 @@ class ClockService : Service(), Api {
     private lateinit var server: WebServer
 
     private val renderer = FrameRenderer()
+    private val data by lazy { DataHub(this) }
     private val hub by lazy { IPixelHub(this) }
     private val livePanel by lazy { LivePanel(hub) }
     private val simulated = SimulatedPanel()
@@ -136,6 +138,9 @@ class ClockService : Service(), Api {
         previewThread = p
         previewHandler = Handler(p.looper)
 
+        renderer.dataHub = data
+        data.start()
+
         startForegroundNotice()
         server.start()
 
@@ -174,6 +179,7 @@ class ClockService : Service(), Api {
         store.removeListener(settingsListener)
         handler?.removeCallbacksAndMessages(null)
         server.stop()
+        data.stop()
         if (panelRequested) {
             // Leave the panel with a visible sign-off rather than the last frame
             // frozen on it, which is what the driver's goodbye sequence is for.
@@ -330,6 +336,12 @@ class ClockService : Service(), Api {
      */
     private fun renderLoop() {
         val s = store.current
+        // Cheap unless something is due: the weather every quarter hour, the
+        // sun times once a day. Never blocks — the network runs elsewhere.
+        data.tick(s, System.currentTimeMillis())
+        renderer.sunriseMs = data.sunriseMs
+        renderer.sunsetMs = data.sunsetMs
+
         val live = panelRequested && livePanel.isLive
         val w = if (live) hub.width else simulated.width
         val h = if (live) hub.height else simulated.height
@@ -406,6 +418,9 @@ class ClockService : Service(), Api {
 
     /** Last frame handed to the driver, to tell a repeat from a new one. */
     private var lastPulledHash = 0
+
+    private var lastCityLat = Double.NaN
+    private var lastCityLon = Double.NaN
 
     /**
      * Hands the latest frame to the previews, off the render thread.
@@ -649,6 +664,13 @@ class ClockService : Service(), Api {
     // ---------------------------------------------------------- the settings
 
     private fun onSettingsChanged(s: Settings) {
+        // A retyped city means the cached fix and forecast are for the wrong
+        // place; drop them rather than showing yesterday elsewhere.
+        if (s.cityLat != lastCityLat || s.cityLon != lastCityLon) {
+            lastCityLat = s.cityLat
+            lastCityLon = s.cityLon
+            data.invalidate()
+        }
         simulated.width = s.simulatedWidth
         simulated.height = s.simulatedHeight
 
@@ -693,6 +715,24 @@ class ClockService : Service(), Api {
                 put("ips", org.json.JSONArray(WebServer.localIps()))
                 put("viewers", server.viewerCount)
                 put("passwordSet", auth.isConfigured)
+            })
+            put("readouts", JSONObject().apply {
+                put("page", renderer.currentPage(s, System.currentTimeMillis()).name)
+                put("hasLocation", data.hasLocation)
+                put("lat", if (data.latitude.isNaN()) JSONObject.NULL else data.latitude)
+                put("lon", if (data.longitude.isNaN()) JSONObject.NULL else data.longitude)
+                put("hasTelemetry", data.hasTelemetry)
+                put("barometer", data.sensorPressureHpa != null)
+                put("pressureHpa", data.pressureHpa ?: JSONObject.NULL)
+                put("humidity", data.humidityPercent ?: JSONObject.NULL)
+                val w = data.weather
+                put("weather", if (w == null) JSONObject.NULL else JSONObject().apply {
+                    put("tempC", w.temperatureC)
+                    put("code", w.code)
+                    put("description", w.description)
+                    put("icon", com.example.ipixelclock.data.WeatherService.icon(w.code).name)
+                    put("fetchedAtMs", w.fetchedAtMs)
+                })
             })
             put("transport", labSummary().put("tuning", tuningNote))
             put("fps", Math.round(measuredFps * 10.0) / 10.0)
@@ -759,8 +799,20 @@ class ClockService : Service(), Api {
     }
 
     override fun geocode(query: String): JSONObject {
-        // Phase 5 wires this to Open-Meteo's geocoding endpoint.
-        return JSONObject().put("results", org.json.JSONArray())
+        // Runs on the web thread, which is already off the render path, so the
+        // blocking lookup is fine here. Proxied rather than called from the
+        // browser so no request carries the viewer's address to a third party.
+        val arr = org.json.JSONArray()
+        for (p in com.example.ipixelclock.data.WeatherService.geocode(query)) {
+            arr.put(
+                JSONObject()
+                    .put("name", p.name)
+                    .put("country", p.country)
+                    .put("lat", p.lat)
+                    .put("lon", p.lon)
+            )
+        }
+        return JSONObject().put("results", arr)
     }
 
     private fun pushState() {

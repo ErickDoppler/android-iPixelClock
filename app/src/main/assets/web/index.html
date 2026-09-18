@@ -281,11 +281,45 @@
         <label class="switch"><input type="checkbox" id="showSunset"><span></span></label>
       </div>
       <div class="row">
-        <label for="cityName">City</label>
-        <input type="text" id="cityName" placeholder="Leave blank to use the phone's location">
+        <label for="metricUnits">Celsius</label>
+        <label class="switch"><input type="checkbox" id="metricUnits"><span></span></label>
       </div>
-      <p class="hint">Weather and sun times are coming in the next build; the
-        settings persist now so they are ready when it lands.</p>
+    </div>
+
+    <div class="card">
+      <h2>WHERE</h2>
+      <div class="row">
+        <label for="citySearch">Find a city</label>
+        <input type="text" id="citySearch" placeholder="Type a name, press Enter">
+      </div>
+      <div id="city-results" class="city-results"></div>
+      <div class="status-grid">
+        <div class="kv"><span class="k">Using</span><span class="v" id="st-city">&mdash;</span></div>
+        <div class="kv"><span class="k">Position</span><span class="v" id="st-pos">&mdash;</span></div>
+      </div>
+      <div class="buttons">
+        <button id="city-clear" class="ghost">USE THE PHONE'S LOCATION</button>
+      </div>
+      <p class="hint">A typed city wins over the phone's own fix &mdash; having told
+        the clock where it is, you should not have that overridden by a stale
+        reading from wherever the phone was last switched on. Sunrise and sunset
+        are computed on the device and need no network; the weather comes from
+        Open-Meteo, which needs no account, refreshed every fifteen minutes.</p>
+    </div>
+
+    <div class="card">
+      <h2>THE ROTATION</h2>
+      <div class="status-grid">
+        <div class="kv"><span class="k">Showing</span><span class="v" id="st-page">&mdash;</span></div>
+        <div class="kv"><span class="k">Weather</span><span class="v" id="st-weather">&mdash;</span></div>
+        <div class="kv"><span class="k">Telemetry</span><span class="v" id="st-telemetry">&mdash;</span></div>
+      </div>
+      <p class="hint">Each minute: <b>time for 45&nbsp;s</b>, then the date for
+        5&nbsp;s, the conditions for 5&nbsp;s, then pressure and humidity for
+        5&nbsp;s. With no pressure or humidity to show, the conditions take
+        10&nbsp;s instead &mdash; so the cycle is always exactly a minute and stays
+        locked to it. A page whose data is missing is skipped entirely rather
+        than cutting away from the clock to show nothing.</p>
     </div>
   </section>
 
