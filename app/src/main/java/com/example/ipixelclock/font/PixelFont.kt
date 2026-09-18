@@ -70,12 +70,25 @@ class PixelFont(
         y: Int,
         color: Int,
         coverage: Float = 1f,
-        colorAt: ((x: Int, y: Int) -> Int)? = null
+        colorAt: ((x: Int, y: Int) -> Int)? = null,
+        /**
+         * Columns outside `[clipLeft, clipRight)` are dropped.
+         *
+         * For text scrolling past something that stays put — a pinned weather
+         * icon — where letting the glyphs run underneath it would be worse than
+         * not drawing them at all.
+         */
+        clipLeft: Int = Int.MIN_VALUE,
+        clipRight: Int = Int.MAX_VALUE
     ) {
         var cx = x
         for (ch in s) {
-            drawGlyph(canvas, ch, cx, y, color, coverage, colorAt)
-            cx += charWidth(ch) + spacing
+            val w = charWidth(ch)
+            // Whole glyphs off the edge cost nothing to skip.
+            if (cx + w > clipLeft && cx < clipRight) {
+                drawGlyph(canvas, ch, cx, y, color, coverage, colorAt, clipLeft, clipRight)
+            }
+            cx += w + spacing
         }
     }
 
@@ -87,7 +100,9 @@ class PixelFont(
         y: Int,
         color: Int,
         coverage: Float = 1f,
-        colorAt: ((x: Int, y: Int) -> Int)? = null
+        colorAt: ((x: Int, y: Int) -> Int)? = null,
+        clipLeft: Int = Int.MIN_VALUE,
+        clipRight: Int = Int.MAX_VALUE
     ) {
         val g = glyph(ch) ?: return
         val cell = charWidth(ch)
@@ -95,9 +110,10 @@ class PixelFont(
         for (col in g.indices) {
             val bits = g[col]
             if (bits == 0) continue
+            val px = x + offset + col
+            if (px < clipLeft || px >= clipRight) continue
             for (row in 0 until height) {
                 if (bits and (1 shl row) == 0) continue
-                val px = x + offset + col
                 val py = y + row
                 canvas.blendA(px, py, colorAt?.invoke(px, py) ?: color, coverage)
             }

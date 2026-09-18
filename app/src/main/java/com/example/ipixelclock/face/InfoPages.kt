@@ -222,32 +222,45 @@ object InfoPages {
         val iconW = if (icon != null) ICON_W * iconScale + font.spacing * 2 else 0
 
         val textW = font.measure(line)
-        val total = textW + iconW
         val y = ((canvas.height - font.height) / 2).coerceAtLeast(0)
 
-        val x0 = if (total <= canvas.width) {
-            // Fits: just centre it.
-            (canvas.width - total) / 2
-        } else {
-            // Does not fit: pace the travel so the whole line has been past the
-            // edge by the time the page hands the panel back. A fixed speed
-            // would either crawl and cut off the end, or race and be
-            // unreadable — the page duration is what has to be satisfied.
-            val overflow = total - canvas.width
-            val hold = HOLD_MS.coerceAtMost(pageDurationMs / 4)
-            val travel = (pageDurationMs - hold * 2).coerceAtLeast(400L)
-            val t = ((elapsedInPageMs - hold).coerceIn(0L, travel)).toFloat() / travel
-            -(overflow * t).toInt()
-        }
-
+        // The icon is pinned to the left and the text scrolls beside it, rather
+        // than the two travelling together. It is an identity marker, not part
+        // of the sentence, and as the head of a scrolling line it was the first
+        // thing off the edge — visible for about a second of a five-second page.
         if (icon != null) {
             drawIcon(
-                canvas, icon, x0,
+                canvas, icon, 0,
                 ((canvas.height - ICON_H * iconScale) / 2).coerceAtLeast(0),
                 coverage, iconScale
             )
         }
-        font.draw(canvas, line, x0 + iconW, y, settings.colorPrimary, coverage)
+
+        val avail = canvas.width - iconW
+        val x0 = if (textW <= avail) {
+            // Fits: centre it in whatever the icon left.
+            iconW + (avail - textW) / 2
+        } else {
+            // Does not fit: sweep it through the middle. The head starts at the
+            // halfway mark and the run ends when the tail reaches the same
+            // mark, so the line always travels exactly its own width and every
+            // part of it crosses the centre of the panel — where the eye
+            // already is — rather than appearing and vanishing at the edges.
+            //
+            // Paced from the page's own duration, not a fixed speed: a fixed
+            // rate either crawls and cuts the end off, or races unreadably.
+            val mid = (canvas.width / 2).coerceAtLeast(iconW)
+            val hold = HOLD_MS.coerceAtMost(pageDurationMs / 4)
+            val travel = (pageDurationMs - hold * 2).coerceAtLeast(400L)
+            val t = ((elapsedInPageMs - hold).coerceIn(0L, travel)).toFloat() / travel
+            mid - (textW * t).toInt()
+        }
+
+        font.draw(
+            canvas, line, x0, y, settings.colorPrimary, coverage,
+            // Never under the icon.
+            clipLeft = iconW, clipRight = canvas.width
+        )
     }
 
     /** SYSTEM at the largest whole multiple that fits the panel's height. */
