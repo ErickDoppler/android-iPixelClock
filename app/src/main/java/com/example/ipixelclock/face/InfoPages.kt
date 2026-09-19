@@ -218,8 +218,9 @@ object InfoPages {
         pageDurationMs: Long
     ) {
         val font = bigFont(canvas.height)
-        val iconScale = (canvas.height / ICON_H).coerceIn(1, 3)
-        val iconW = if (icon != null) ICON_W * iconScale + font.spacing * 2 else 0
+        val iconScale = WeatherIcons.scaleFor(canvas.height)
+        val iconFits = icon != null && iconScale >= 1
+        val iconW = if (iconFits) WeatherIcons.SIZE * iconScale + font.spacing * 2 else 0
 
         val textW = font.measure(line)
         val y = ((canvas.height - font.height) / 2).coerceAtLeast(0)
@@ -228,11 +229,11 @@ object InfoPages {
         // than the two travelling together. It is an identity marker, not part
         // of the sentence, and as the head of a scrolling line it was the first
         // thing off the edge — visible for about a second of a five-second page.
-        if (icon != null) {
-            drawIcon(
-                canvas, icon, 0,
-                ((canvas.height - ICON_H * iconScale) / 2).coerceAtLeast(0),
-                coverage, iconScale
+        if (iconFits) {
+            WeatherIcons.draw(
+                canvas, icon!!, 0,
+                ((canvas.height - WeatherIcons.SIZE * iconScale) / 2).coerceAtLeast(0),
+                iconScale, coverage
             )
         }
 
@@ -278,66 +279,6 @@ object InfoPages {
             Locale.US, "%02d:%02d",
             cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE)
         )
-    }
-
-    // ------------------------------------------------------------- the icons
-    // 7x7, drawn as column bit-masks like the fonts. Deliberately few: at this
-    // size the difference between drizzle and light rain is not drawable, so
-    // the WMO codes collapse to eight shapes that are.
-
-    private const val ICON_W = 7
-    private const val ICON_H = 7
-
-    private val ICONS: Map<WeatherService.Icon, IntArray> = mapOf(
-        // A sun: centre disc with four spokes.
-        WeatherService.Icon.CLEAR to intArrayOf(0x08, 0x2A, 0x1C, 0x77, 0x1C, 0x2A, 0x08),
-        // Sun behind a cloud.
-        WeatherService.Icon.PARTLY to intArrayOf(0x0A, 0x1C, 0x38, 0x7C, 0x7C, 0x7C, 0x38),
-        WeatherService.Icon.CLOUD to intArrayOf(0x38, 0x7C, 0x7C, 0x7E, 0x7C, 0x7C, 0x38),
-        // Fog: stacked bars.
-        WeatherService.Icon.FOG to intArrayOf(0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x2A),
-        // Cloud with a light dotted fall.
-        WeatherService.Icon.DRIZZLE to intArrayOf(0x1C, 0x3E, 0x3E, 0x7F, 0x3E, 0x5E, 0x1C),
-        // Cloud with streaks.
-        WeatherService.Icon.RAIN to intArrayOf(0x1C, 0x7E, 0x5E, 0x7F, 0x5E, 0x7E, 0x1C),
-        // Cloud with flakes.
-        WeatherService.Icon.SNOW to intArrayOf(0x1C, 0x7E, 0x6A, 0x7F, 0x6A, 0x7E, 0x1C),
-        // Cloud with a bolt.
-        WeatherService.Icon.STORM to intArrayOf(0x1C, 0x3E, 0x7E, 0x7F, 0x6C, 0x3E, 0x1C),
-        WeatherService.Icon.UNKNOWN to intArrayOf(0x00, 0x02, 0x01, 0x51, 0x09, 0x06, 0x00)
-    )
-
-    private fun drawIcon(
-        canvas: PixelCanvas,
-        icon: WeatherService.Icon,
-        x0: Int,
-        y0: Int,
-        coverage: Float,
-        scale: Int = 1
-    ) {
-        val g = ICONS[icon] ?: return
-        val color = when (icon) {
-            WeatherService.Icon.CLEAR, WeatherService.Icon.PARTLY -> 0xFFFFC020.toInt()
-            WeatherService.Icon.SNOW -> 0xFFDFF2FF.toInt()
-            WeatherService.Icon.STORM -> 0xFFFFE040.toInt()
-            else -> 0xFF90B8D8.toInt()
-        }
-        for (col in g.indices) {
-            for (row in 0 until ICON_H) {
-                if (g[col] and (1 shl row) == 0) continue
-                // Scaled to match the line's font, so the icon does not sit as
-                // a speck beside 14-row text.
-                for (dy in 0 until scale) {
-                    for (dx in 0 until scale) {
-                        canvas.blendA(
-                            x0 + col * scale + dx,
-                            y0 + row * scale + dy,
-                            color, coverage
-                        )
-                    }
-                }
-            }
-        }
     }
 
     private val WEEKDAYS = arrayOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")

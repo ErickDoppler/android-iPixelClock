@@ -1,0 +1,4 @@
+# Every file needs the owner's review before a pull request can be merged.
+# Combined with branch protection on main, this is what makes approval yours
+# alone: a review from anyone else does not satisfy the requirement.
+* @ErickDoppler
