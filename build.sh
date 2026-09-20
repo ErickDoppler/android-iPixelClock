@@ -112,9 +112,13 @@ if [ "$INSTALL" = yes ]; then
         echo "Refusing to install an unsigned release APK." >&2
         exit 1
     fi
+    # .exe as well as the bare name: under Git Bash the SDK ships adb.exe and
+    # there is usually no plain "adb" on PATH to fall back to.
     ADB=adb
     for candidate in "${ANDROID_SDK_ROOT:-}/platform-tools/adb" \
-                     "${ANDROID_HOME:-}/platform-tools/adb"
+                     "${ANDROID_SDK_ROOT:-}/platform-tools/adb.exe" \
+                     "${ANDROID_HOME:-}/platform-tools/adb" \
+                     "${ANDROID_HOME:-}/platform-tools/adb.exe"
     do
         [ -x "$candidate" ] && { ADB="$candidate"; break; }
     done
