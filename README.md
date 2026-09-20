@@ -135,6 +135,7 @@ iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 8080
 | **Backgrounds** | Nineteen generated effects with speed and intensity, and their own colour pair |
 | **Readouts** | Date, temperature with a weather icon, sunrise and sunset, pressure and humidity |
 | **Visibility** | Always, duty cycle, daytime only, night only, or a schedule |
+| **Message** | A line of your own text that interrupts the clock, on demand or on the clock, with twenty-three arrival effects and its own colours |
 | **Web UI** | Served by the app, password protected, with a live preview of the panel over a WebSocket |
 
 ### The page rotation
@@ -158,6 +159,34 @@ drifts across it, and the UI tells you which you have.
 A line too wide for the panel sweeps through the centre: the head starts at the
 halfway mark and the run ends when the tail reaches it, paced from the page's
 own duration so the whole line is always revealed before the panel hands back.
+
+### Custom messages
+
+The **MESSAGE** tab holds a line of your own text that takes the panel over for
+a few seconds and hands it straight back — `DINNER IS READY`, `BACK IN 5`.
+
+Press **SHOW NOW** to play it, or switch on a schedule. The schedule is anchored
+to the clock rather than to a timer started at boot, so *every 15 minutes* means
+:00, :15, :30 and :45, and it lands on the same slots after a restart.
+
+Twenty-three arrival effects, in two kinds:
+
+| | |
+|---|---|
+| **Travelling** | Scroll left / right, wave, news ticker. The text can be any length; speed is how fast it moves. |
+| **In place** | Roll up / down, straight cut, fade, pop, zoom, wipe, scan bar, blinds, typewriter, drop in, split apart, assemble from dust, shatter, matrix resolve, glitch, flash, bounce, ripple. Speed is how long each page holds. |
+
+An in-place effect cannot show a line wider than the panel, so a long message is
+broken into pages on word boundaries and shown in turn. The UI tells you how
+many pages you have and how long one showing will take.
+
+Text and background each get a colour behind a **Custom** switch. With both off
+a message wears the clock's own colour over whatever background is running, so
+an interruption still looks like the same device; switching the background on
+covers the effect behind it, which is what keeps a notice readable over matrix
+rain.
+
+Drawn in the 16-row SYSTEM face — a font picker of its own is still to come.
 
 ---
 
@@ -369,6 +398,7 @@ render/             PixelCanvas, FrameRenderer, Orientation, PanelTarget
 font/               PixelFont, PixelFontArt (ASCII-art builder), ArtFonts
 face/               ClockFace, ColorModes, InfoPages, WeatherIcons
 fx/                 DigitTransition + the digit-change effects
+msg/                MessageArt, the message arrival effects, MessageRunner
 bg/                 Background engine + the generated effects
 data/               SunTimes, WeatherService, DataHub
 web/                WebServer (HTTP + WS), Auth, Api + Schema

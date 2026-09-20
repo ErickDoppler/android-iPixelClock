@@ -42,6 +42,7 @@
   <button class="tab active" data-tab="panel">PANEL</button>
   <button class="tab" data-tab="face">FACE</button>
   <button class="tab" data-tab="background">BACKGROUND</button>
+  <button class="tab" data-tab="message">MESSAGE</button>
   <button class="tab" data-tab="info">INFO</button>
   <button class="tab" data-tab="system">SYSTEM</button>
 </nav>
@@ -253,6 +254,89 @@
         deliberately held below full brightness so the clock stays readable on
         top of it.</p>
       <p class="hint">Image, GIF and video backgrounds are the next build.</p>
+    </div>
+  </section>
+
+  <!-- ---------------------------------------------------------- MESSAGE -->
+  <section class="page" id="page-message">
+    <div class="card">
+      <h2>CUSTOM TEXT</h2>
+      <div class="row">
+        <label for="messageEnabled">Show this text</label>
+        <label class="switch"><input type="checkbox" id="messageEnabled"><span></span></label>
+      </div>
+      <div class="row">
+        <label for="messageText">Text</label>
+        <input type="text" id="messageText" maxlength="512" placeholder="HELLO">
+      </div>
+      <div class="row">
+        <label for="messageRepeat">Show this many times</label>
+        <input type="number" id="messageRepeat" min="1" max="20">
+      </div>
+      <div class="buttons">
+        <button class="neon" id="message-show">SHOW NOW</button>
+        <button class="ghost small" id="message-stop">STOP</button>
+      </div>
+      <p class="hint"><b>SHOW NOW</b> plays the text straight away whatever the
+        switch says &mdash; it is how you see what it will look like. The switch
+        above gates the <i>schedule</i>, not the button.</p>
+      <p class="hint" id="message-pages"></p>
+    </div>
+
+    <div class="card">
+      <h2>SCHEDULE</h2>
+      <div class="row">
+        <label for="messageSchedule">Show on schedule</label>
+        <label class="switch"><input type="checkbox" id="messageSchedule"><span></span></label>
+      </div>
+      <div class="row sub" id="row-messageEvery">
+        <label for="messageEveryMinutes">Show every (minutes)</label>
+        <input type="number" id="messageEveryMinutes" min="1" max="1440">
+      </div>
+      <p class="hint">Anchored to the clock, not to a timer: every 15 minutes
+        means <b>:00 :15 :30 :45</b>, and it lands on the same slots after a
+        restart. Switching the schedule on waits for the next boundary rather
+        than firing on the spot &mdash; press SHOW NOW if you want it now.</p>
+    </div>
+
+    <div class="card">
+      <h2>COLOUR</h2>
+      <div class="row">
+        <label for="messageCustomColor">Custom text colour</label>
+        <label class="switch"><input type="checkbox" id="messageCustomColor"><span></span></label>
+      </div>
+      <div class="row sub" id="row-messageColor">
+        <label for="messageColor">Text</label>
+        <input type="color" id="messageColor">
+      </div>
+      <div class="row">
+        <label for="messageCustomBackground">Custom background</label>
+        <label class="switch"><input type="checkbox" id="messageCustomBackground"><span></span></label>
+      </div>
+      <div class="row sub" id="row-messageBackground">
+        <label for="messageBackground">Background</label>
+        <input type="color" id="messageBackground">
+      </div>
+      <p class="hint">With both switches off a message wears the clock's own
+        colour over whatever background is running, so an interruption still
+        looks like the same device. Switch the background on to cover the effect
+        behind it &mdash; that is what keeps a notice readable over matrix rain.</p>
+    </div>
+
+    <div class="card">
+      <h2>HOW IT ARRIVES</h2>
+      <div class="row">
+        <label for="messageEffect">Effect</label>
+        <select id="messageEffect"></select>
+      </div>
+      <div class="row">
+        <label for="messageSpeed">Speed</label>
+        <input type="range" id="messageSpeed" min="0" max="100">
+        <output id="messageSpeed-out" class="num">50</output>
+      </div>
+      <p class="hint" id="message-effect-note"></p>
+      <p class="hint">Drawn in the 16-row SYSTEM face. A font picker of its own
+        is a later job.</p>
     </div>
   </section>
 

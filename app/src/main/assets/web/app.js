@@ -166,6 +166,7 @@
     fillSelect('colorMode', schema.colorModes, 'id', 'label');
     fillSelect('transition', schema.transitions, 'id', 'label');
     fillSelect('background', schema.backgrounds, 'id', 'label');
+    fillSelect('messageEffect', schema.messageEffects, 'id', 'label');
     fillSelect('visibility', schema.visibilities, 'id', 'label');
     fillSelect('dateFormat', schema.dateFormats, 'id', 'label');
     fillSelect('verticalStyle', schema.verticalStyles, 'id', 'label');
@@ -198,21 +199,24 @@
   // Every plain setting: id in the DOM == key in the settings JSON.
   var CHECKS = ['displayOn', 'brightnessAuto', 'mirrorH', 'mirrorV', 'hour24', 'metricUnits',
     'showSeconds', 'blinkColon', 'leadingZero', 'showDate', 'showWeather',
-    'showSunrise', 'showSunset', 'startOnBoot'];
+    'showSunrise', 'showSunset', 'startOnBoot',
+    'messageEnabled', 'messageSchedule', 'messageCustomColor', 'messageCustomBackground'];
 
   var RANGES = ['brightness', 'brightnessDay', 'brightnessNight', 'gradientAngle',
     'colorSpeed', 'transitionMs', 'backgroundSpeed', 'backgroundIntensity',
-    'frameIntervalMs'];
+    'frameIntervalMs', 'messageSpeed'];
 
   var SELECTS = ['fontFamily', 'colorMode', 'transition', 'background',
-    'visibility', 'dateFormat', 'verticalStyle'];
+    'visibility', 'dateFormat', 'verticalStyle', 'messageEffect'];
 
   var NUMBERS = ['dutyShowSeconds', 'hideSeconds', 'port',
-    'infoTimeSeconds', 'infoDateSeconds', 'infoConditionsSeconds', 'infoTelemetrySeconds'];
+    'infoTimeSeconds', 'infoDateSeconds', 'infoConditionsSeconds', 'infoTelemetrySeconds',
+    'messageRepeat', 'messageEveryMinutes'];
 
-  var COLORS = ['colorPrimary', 'colorSecondary', 'backgroundColor', 'backgroundColor2'];
+  var COLORS = ['colorPrimary', 'colorSecondary', 'backgroundColor', 'backgroundColor2',
+    'messageColor', 'messageBackground'];
 
-  var TEXTS = ['cityName'];
+  var TEXTS = ['cityName', 'messageText'];
 
   function wireControls() {
     var i;
@@ -243,6 +247,15 @@
       });
     };
 
+    $('message-show').onclick = function () {
+      // The text box may not have blurred yet — on a phone keyboard it usually
+      // has not — so send what is in it rather than what was last committed.
+      postJson('/api/message', { action: 'show', settings: messagePatch() }, noop);
+    };
+    $('message-stop').onclick = function () {
+      postJson('/api/message', { action: 'cancel' }, noop);
+    };
+
     $('reminder-detect').onclick = function () {
       postJson('/api/detect', { action: 'scan' }, noop);
     };
@@ -265,6 +278,11 @@
     el.onchange = function () {
       if (suppress) return;
       var p = {}; p[id] = el.checked; patch(p);
+      // Locally, rather than waiting for the state push to come back: a row
+      // that appears a round trip after the switch feels broken.
+      if (id === 'messageSchedule') showMessageRows(el.checked);
+      if (id === 'messageCustomColor') showSubRow('messageColor', el.checked);
+      if (id === 'messageCustomBackground') showSubRow('messageBackground', el.checked);
     };
   }
 
@@ -297,6 +315,7 @@
       var p = {}; p[id] = el.value; patch(p);
       if (id === 'fontFamily') showFontBlurb(el.value);
       if (id === 'visibility') showVisibilityRows(el.value);
+      if (id === 'messageEffect') showEffectNote(el.value);
     };
   }
 
@@ -386,6 +405,11 @@
 
     showFontBlurb(set.fontFamily);
     showVisibilityRows(set.visibility);
+    showMessageRows(set.messageSchedule);
+    showSubRow('messageColor', set.messageCustomColor);
+    showSubRow('messageBackground', set.messageCustomBackground);
+    showEffectNote(set.messageEffect);
+    showMessagePlan(s.message);
 
     var sim = $('simSize');
     if (sim) sim.value = set.simulatedWidth + 'x' + set.simulatedHeight;
@@ -558,6 +582,54 @@
       }
     }
     el.innerHTML = '';
+  }
+
+  /** What SHOW NOW sends alongside the command: the box as it stands. */
+  function messagePatch() {
+    var p = {};
+    var t = $('messageText');
+    var n = $('messageRepeat');
+    if (t) p.messageText = t.value;
+    if (n && !isNaN(parseInt(n.value, 10))) p.messageRepeat = parseInt(n.value, 10);
+    return p;
+  }
+
+  function showMessageRows(on) {
+    var row = $('row-messageEvery');
+    if (row) row.className = on ? 'row sub' : 'row sub hidden';
+  }
+
+  /** A colour picker is only shown when its Custom switch is on. */
+  function showSubRow(id, on) {
+    var row = $('row-' + id);
+    if (row) row.className = on ? 'row sub' : 'row sub hidden';
+  }
+
+  /** Whether the chosen effect scrolls the text or reveals it in place. */
+  function showEffectNote(id) {
+    var el = $('message-effect-note');
+    if (!el || !schema || !schema.messageEffects) return;
+    // The ones that carry the text across the panel. The vertical pair are not
+    // among them: rolling a line up a 16-row strip does nothing about its being
+    // too wide, so those page like the rest.
+    var travelling = { 'scroll-left': 1, 'scroll-right': 1, 'wave': 1, 'ticker': 1 };
+    el.innerHTML = travelling[id]
+      ? 'This one travels, so the text can be any length and speed is how fast it moves.'
+      : 'This one reveals the text in place. Anything too wide for the panel is ' +
+        'broken into pages shown in turn, and speed is how long each page holds.';
+  }
+
+  function showMessagePlan(m) {
+    var el = $('message-pages');
+    if (!el) return;
+    if (!m || !m.pages) {
+      el.innerHTML = 'No text set — nothing will be shown.';
+      return;
+    }
+    var secs = Math.round(m.totalMs / 100) / 10;
+    el.innerHTML = (m.running ? '<b>Showing now.</b> ' : '') +
+      m.pages + (m.pages === 1 ? ' page' : ' pages') +
+      ', one showing takes ' + secs + ' s.';
   }
 
   function showVisibilityRows(mode) {

@@ -72,6 +72,12 @@ runtime-permission path. Those need emulators before the project is called done.
   (`fx/Transitions.kt`). The panel's frame rate varies by an order of magnitude
   between generations and wanders within one; anything that advances per frame
   will run at the wrong speed and stutter on dropped frames.
+- **The message runner is render-thread state behind two flags.** `MessageRunner`
+  is triggered from web threads and the app, and `showNow()` / `cancel()` set an
+  `AtomicBoolean` each — they never touch the run itself. `plan()` is pure and
+  allocates no pixel masks, which is what makes it safe to call from `state()`
+  on every settings push. Anything new that reaches in from off the render
+  thread goes through a flag too.
 - **Never hand a live render buffer to another thread.** `FrameRenderer` redraws
   one canvas in place. Anything read off the render thread — `/api/preview.png`
   is the case that bit — takes a copy under `frameLock`, or it will occasionally
@@ -103,6 +109,7 @@ render/             PixelCanvas, FrameRenderer, Orientation, PanelTarget
 font/               PixelFont model, PixelFontArt (ASCII-art builder), ArtFonts, registry
 face/               ClockFace layout, per-cell transition state, ColorModes
 fx/                 DigitTransition + the 21 digit-change effects
+msg/                the custom message: MessageArt, the 23 arrival effects, MessageRunner
 web/                WebServer (HTTP + WS), Auth, Api + Schema
 assets/web/         index.html, app.css, app.js, login.html, locked.html
 

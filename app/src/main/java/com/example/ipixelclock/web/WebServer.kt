@@ -325,6 +325,9 @@ class WebServer(
             path == "/api/detect" && method == "POST" ->
                 writeJson(out, "200 OK", api.detect(jsonBody(body)))
 
+            path == "/api/message" && method == "POST" ->
+                writeJson(out, "200 OK", api.message(jsonBody(body)))
+
             path == "/api/preview.png" -> {
                 val png = api.previewPng()
                 if (png == null) {
@@ -504,6 +507,7 @@ class WebServer(
                 "settings" -> api.patchSettings(json.optJSONObject("data") ?: JSONObject())
                 "brightness" -> api.brightness(json.optJSONObject("data") ?: JSONObject())
                 "power" -> api.power(json.optJSONObject("data") ?: JSONObject())
+                "message" -> api.message(json.optJSONObject("data") ?: JSONObject())
             }
         } catch (e: Exception) {
             Log.d(TAG, "bad ws message", e)

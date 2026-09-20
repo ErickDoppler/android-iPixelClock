@@ -20,9 +20,11 @@ import com.example.ipixelclock.led.PanelTuning
 import com.example.ipixelclock.led.PanelTuning.Companion.fmt1
 import com.example.ipixelclock.led.PanelTuning.Companion.fmt2
 import com.example.ipixelclock.render.FrameRenderer
+import com.example.ipixelclock.render.Orientation
 import com.example.ipixelclock.render.LivePanel
 import com.example.ipixelclock.render.PanelTarget
 import com.example.ipixelclock.render.PixelCanvas
+import com.example.ipixelclock.render.Rotation
 import com.example.ipixelclock.render.SimulatedPanel
 import com.example.ipixelclock.settings.Settings
 import com.example.ipixelclock.settings.SettingsStore
@@ -374,7 +376,14 @@ class ClockService : Service(), Api {
     private fun isAnimated(s: Settings): Boolean =
         s.background != "off" ||
             s.colorMode == "rainbow" || s.colorMode == "gradient-animated" ||
-            s.visibility == "duty" || s.showSeconds || s.blinkColon
+            s.visibility == "duty" || s.showSeconds || s.blinkColon ||
+            // A message must never be rendered at the idle rate: every effect is
+            // a movement, and a scroll at two frames a second is unreadable.
+            // Only while one is actually running, though — a schedule that fires
+            // twice an hour is not a reason to render flat out in between. The
+            // trigger is checked every frame, so at worst a showing starts one
+            // idle tick late and the frame after that is already at full rate.
+            renderer.messageActive
 
     /**
      * Composites one frame and stores it. Render thread only.
@@ -751,6 +760,25 @@ class ClockService : Service(), Api {
                     put("fetchedAtMs", w.fetchedAtMs)
                 })
             })
+            put("message", JSONObject().apply {
+                put("running", renderer.messageActive)
+                // Measured against the canvas the scene is composed on, which is
+                // the panel's size with the axes swapped on a vertical mount —
+                // the message pages to the display as hung, not as sold.
+                val o = Orientation(
+                    rotation = Rotation.ofDegrees(s.rotation),
+                    mirrorH = s.mirrorH,
+                    mirrorV = s.mirrorV
+                )
+                val plan = renderer.messages.plan(
+                    s,
+                    o.logicalWidth(t.panelWidth, t.panelHeight),
+                    o.logicalHeight(t.panelWidth, t.panelHeight)
+                )
+                put("pages", plan?.pages ?: 0)
+                put("stepMs", plan?.stepMs ?: 0L)
+                put("totalMs", plan?.totalMs ?: 0L)
+            })
             put("transport", labSummary().put("tuning", tuningNote))
             put("fps", Math.round(measuredFps * 10.0) / 10.0)
             put("renderFps", Math.round(renderFps * 10.0) / 10.0)
@@ -796,6 +824,27 @@ class ClockService : Service(), Api {
                 val w = body.optInt("w", simulated.width)
                 val h = body.optInt("h", simulated.height)
                 store.update { it.copy(simulatedWidth = w, simulatedHeight = h) }
+            }
+        }
+        return state()
+    }
+
+    override fun message(body: JSONObject): JSONObject {
+        // A patch may ride along so SHOW NOW uses what is in the text box right
+        // now, not what was last committed — on a phone keyboard the box often
+        // has not blurred yet when the button is pressed.
+        body.optJSONObject("settings")?.let { store.patch(it) }
+        when (body.optString("action")) {
+            "show" -> {
+                renderer.messages.showNow()
+                // Straight to the render thread rather than waiting out the idle
+                // interval: half a second of nothing after pressing a button
+                // reads as the button not working.
+                scheduleRender(0L)
+            }
+            "cancel" -> {
+                renderer.messages.cancel()
+                scheduleRender(0L)
             }
         }
         return state()

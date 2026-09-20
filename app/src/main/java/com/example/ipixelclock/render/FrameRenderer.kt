@@ -5,6 +5,7 @@ import com.example.ipixelclock.face.ClockFace
 import com.example.ipixelclock.data.DataHub
 import com.example.ipixelclock.face.ColorModes
 import com.example.ipixelclock.face.InfoPages
+import com.example.ipixelclock.msg.MessageRunner
 import com.example.ipixelclock.settings.Settings
 
 /**
@@ -108,6 +109,17 @@ class FrameRenderer {
         //    layer is black, which is exactly the "off" effect.
         drawBackground(scene, settings, nowMs, dtMs)
 
+        // 3. A custom message, when one is running, takes the panel outright.
+        //    It is an interruption by design, so it ignores the page rotation
+        //    and the visibility policy — but it still draws over the background,
+        //    which is what stops it looking like a different device.
+        if (messages.frame(settings, scene, nowMs)) {
+            scene.scaleBrightness(
+                ColorModes.softwareBrightness(effectiveBrightness(settings, nowMs))
+            )
+            return orientation.apply(scene, out)
+        }
+
         // 3/4. The clock face, or one of the info pages taking its turn. They
         //      share the panel rather than competing for it: on a 16-row strip
         //      there is no room for both, so the rotation gives the readouts a
@@ -177,6 +189,18 @@ class FrameRenderer {
             secondary = settings.backgroundColor2
         )
     }
+
+    /**
+     * The custom message.
+     *
+     * Public so the service can trigger a showing from a web thread — the only
+     * thing about it that is callable from off the render thread, and it only
+     * sets a flag.
+     */
+    val messages = MessageRunner()
+
+    /** True while a message is on the panel, so the loop keeps its rate up. */
+    val messageActive: Boolean get() = messages.active
 
     /** Supplies the readouts. Null before the service has built one. */
     @Volatile

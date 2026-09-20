@@ -4,6 +4,7 @@ import com.example.ipixelclock.face.ColorModes
 import com.example.ipixelclock.bg.Backgrounds
 import com.example.ipixelclock.font.PixelFonts
 import com.example.ipixelclock.fx.Transitions
+import com.example.ipixelclock.msg.MessageEffects
 import com.example.ipixelclock.render.SimulatedPanel
 import org.json.JSONArray
 import org.json.JSONObject
@@ -33,6 +34,13 @@ interface Api {
     /** `{"action": "scan"|"reconnect"|"forget"|"simulate", ...}`. */
     fun detect(body: JSONObject): JSONObject
 
+    /**
+     * `{"action": "show"|"cancel"}` — plays the custom message now, or stops
+     * the one playing. A settings patch may ride along in the same body, so
+     * SHOW NOW picks up text the box has not blurred yet.
+     */
+    fun message(body: JSONObject): JSONObject
+
     /** The current frame as a PNG, for browsers that cannot hold a socket. */
     fun previewPng(): ByteArray?
 
@@ -58,6 +66,7 @@ object Schema {
         // the picker with no HTML change.
         put("transitions", pairs(Transitions.options()))
         put("backgrounds", pairs(Backgrounds.options()))
+        put("messageEffects", pairs(MessageEffects.options()))
         put("mediaMotions", pairs(MEDIA_MOTIONS))
         put("visibilities", pairs(VISIBILITIES))
         put("verticalStyles", pairs(VERTICAL_STYLES))

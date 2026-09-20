@@ -161,6 +161,41 @@ data class Settings(
     val cityLat: Double = Double.NaN,
     val cityLon: Double = Double.NaN,
 
+    // ------------------------------------------------------- the custom message
+
+    /**
+     * A line of text that interrupts the clock for a few seconds.
+     *
+     * [messageEnabled] is the feature's master switch and gates the schedule.
+     * SHOW NOW is deliberately outside it — it is the button you press to see
+     * what the text looks like, and it fires whatever this says.
+     */
+    val messageEnabled: Boolean = false,
+    val messageText: String = "",
+    /** Passes over the whole message in one showing. */
+    val messageRepeat: Int = 1,
+    /** Effect id from `MessageEffects`. */
+    val messageEffect: String = "scroll-left",
+    /** 0..100. Columns a second for the scrolls, page duration for the rest. */
+    val messageSpeed: Int = 50,
+    /** Fire on the clock as well as on demand. */
+    val messageSchedule: Boolean = false,
+    val messageEveryMinutes: Int = 30,
+
+    /**
+     * The message's own colours, each behind a switch.
+     *
+     * Off, a message looks like the clock it interrupted: [colorPrimary] on
+     * whatever background is running. On, it gets its own — which is what you
+     * want for a message that has to read as a different thing from the time,
+     * and the background switch is the one that makes a notice legible over a
+     * busy effect like matrix rain.
+     */
+    val messageCustomColor: Boolean = false,
+    val messageColor: Int = 0xFF00F0FF.toInt(),
+    val messageCustomBackground: Boolean = false,
+    val messageBackground: Int = 0xFF000000.toInt(),
+
     // ------------------------------------------------------------- the system
 
     /** Preferred TCP port. Cannot be below 1024 — Android forbids it. */
@@ -226,6 +261,18 @@ data class Settings(
         put("cityName", cityName)
         put("cityLat", if (cityLat.isNaN()) JSONObject.NULL else cityLat)
         put("cityLon", if (cityLon.isNaN()) JSONObject.NULL else cityLon)
+
+        put("messageEnabled", messageEnabled)
+        put("messageText", messageText)
+        put("messageRepeat", messageRepeat)
+        put("messageEffect", messageEffect)
+        put("messageSpeed", messageSpeed)
+        put("messageSchedule", messageSchedule)
+        put("messageEveryMinutes", messageEveryMinutes)
+        put("messageCustomColor", messageCustomColor)
+        put("messageColor", messageColor)
+        put("messageCustomBackground", messageCustomBackground)
+        put("messageBackground", messageBackground)
 
         put("port", port)
         put("startOnBoot", startOnBoot)
@@ -293,6 +340,23 @@ data class Settings(
         cityName = patch.optString("cityName", cityName),
         cityLat = optDouble(patch, "cityLat", cityLat),
         cityLon = optDouble(patch, "cityLon", cityLon),
+
+        messageEnabled = patch.optBoolean("messageEnabled", messageEnabled),
+        // Capped rather than rejected: the panel pages anything too long, but a
+        // megabyte of text pasted into the box would be rasterised on the render
+        // thread, and that thread has a panel to feed.
+        messageText = patch.optString("messageText", messageText).take(512),
+        messageRepeat = patch.optInt("messageRepeat", messageRepeat).coerceIn(1, 20),
+        messageEffect = patch.optString("messageEffect", messageEffect),
+        messageSpeed = patch.optInt("messageSpeed", messageSpeed).coerceIn(0, 100),
+        messageSchedule = patch.optBoolean("messageSchedule", messageSchedule),
+        messageEveryMinutes = patch.optInt("messageEveryMinutes", messageEveryMinutes)
+            .coerceIn(1, 1440),
+        messageCustomColor = patch.optBoolean("messageCustomColor", messageCustomColor),
+        messageColor = optColor(patch, "messageColor", messageColor),
+        messageCustomBackground =
+            patch.optBoolean("messageCustomBackground", messageCustomBackground),
+        messageBackground = optColor(patch, "messageBackground", messageBackground),
 
         // Below 1024 is a privileged port: the bind is refused on Android, so
         // there is no point letting anyone ask for one.
