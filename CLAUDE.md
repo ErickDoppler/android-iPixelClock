@@ -15,15 +15,25 @@ WebView renders it.
 ## Build and deploy
 
 ```
-./gradlew.bat assembleDebug          # JDK 17 at C:\workenv\jdk, pinned in gradle.properties
+./build.sh                           # -> out/ipixel-clock-debug.apk
 ./deploy.sh                          # build + install + launch on the tablet
 ./deploy.sh log                      # ...then follow logcat
 ```
 
+`build.sh` / `build.cmd` resolve the JDK themselves, from `tools/toolchain.env`
+(written by `download-tools.sh` / `.cmd`) or from `JAVA_HOME` and the usual
+system locations. **Do not pin `org.gradle.java.home` in `gradle.properties`** —
+it was pinned once and made the repository unbuildable on any other machine.
+Bare `./gradlew.bat assembleDebug` still works here because `JAVA_HOME` is
+already a JDK 17, but the scripts are the supported path.
+
+On this machine the toolchain scripts download nothing: they find
+`C:\workenv\jdk` (OpenJDK 17.0.15) and `C:\workenv\AndroidStudio` (platform 35,
+build-tools 35.0.0) and only write `local.properties` and `tools/`. There is no
+`C:\workenv\jdk-23.0.2` whatever the yacht-compass notes say.
+
 Test device: **LG-V500** at `192.168.1.108:5555`, Android 9 / API 28,
-armeabi-v7a. adb is `C:\workenv\platform-tools\adb.exe`; the SDK is
-`C:\workenv\AndroidStudio`. There is no `C:\workenv\jdk-23.0.2` on this machine
-whatever the yacht-compass notes say.
+armeabi-v7a. adb is `C:\workenv\platform-tools\adb.exe`.
 
 The tablet covers neither the Android 5 legacy BLE-scan path nor the API 31+
 runtime-permission path. Those need emulators before the project is called done.
@@ -95,6 +105,10 @@ face/               ClockFace layout, per-cell transition state, ColorModes
 fx/                 DigitTransition + the 21 digit-change effects
 web/                WebServer (HTTP + WS), Auth, Api + Schema
 assets/web/         index.html, app.css, app.js, login.html, locked.html
+
+download-tools.sh/.cmd  toolchain fetcher; reuses whatever is installed
+build.sh/.cmd           build + copy to out/; resolves the JDK itself
+deploy.sh               build + install + launch + logcat, over Wi-Fi
 ```
 
 The web UI is **data-driven from `/api/schema`**: adding a font, transition or

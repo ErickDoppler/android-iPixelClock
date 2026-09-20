@@ -19,6 +19,39 @@ hardware for real light, and the app says so rather than pretending.
 
 ---
 
+## Run it
+
+No Android Studio, no SDK setup, nothing to install by hand. Open a terminal in
+the project folder and run three things in order.
+
+### Windows
+
+1. **`download-tools.cmd`** — once per machine. Downloads the JDK, the Android
+   SDK and Gradle into `tools\`; anything you already have is reused instead.
+   Takes a few minutes the first time, seconds ever after.
+2. **`build.cmd`** — builds the app. The APK lands in
+   `out\ipixel-clock-debug.apk`.
+3. **`build.cmd --install`** — deploys it to the phone: plug it in over USB,
+   enable USB debugging, accept the prompt on the phone, run this.
+
+### Linux / macOS
+
+1. **`./download-tools.sh`** — once per machine. Downloads the JDK, the Android
+   SDK and Gradle into `tools/`; anything you already have is reused instead.
+   Needs `curl` and `unzip`.
+2. **`./build.sh`** — builds the app. The APK lands in
+   `out/ipixel-clock-debug.apk`.
+3. **`./build.sh --install`** — deploys it to the phone: plug it in over USB,
+   enable USB debugging, accept the prompt on the phone, run this.
+
+No phone cable handy? Copy `out/ipixel-clock-debug.apk` to the device and tap
+it, or download the prebuilt APK from [Releases](../../releases). Options,
+release builds and signing are under [Building](#building).
+
+Then see [Getting started](#getting-started) for the first run.
+
+---
+
 ## What it looks like
 
 The panel rotates between the time and a few readouts. Everything below is
@@ -52,7 +85,8 @@ and leaves the one that did not alone.
 
 ## Getting started
 
-1. Install the APK from [Releases](../../releases), or build it (below).
+1. Install the APK — [Run it](#run-it) builds one, or take a prebuilt one from
+   [Releases](../../releases).
 2. Open the app and set a **web password** — one field at the top. Until you do,
    the web interface refuses every remote browser.
 3. Press **DETECT DISPLAY**. Bluetooth is not touched before this.
@@ -127,26 +161,130 @@ own duration so the whole line is always revealed before the panel hands back.
 
 ---
 
-## Build
+## Building
+
+The three commands are in [Run it](#run-it); this section is what they do and
+how to steer them.
+
+The app itself is **minSdk 21** (Android 5.0), targetSdk 35, Kotlin, self-drawn
+Views. No `java.time`, so API 21 needs no core-library desugaring. One
+dependency, `androidx.core-ktx` — the HTTP/WebSocket server is hand-rolled and
+the web UI is plain ES5 and flexbox, so an un-updated Android 5 WebView renders
+it.
+
+### download-tools.sh / download-tools.cmd
+
+Needs `curl` and `unzip` on Unix (PowerShell does the work on Windows) and about
+1.5 GB of disk. It fetches:
+
+* **JDK 17** (Eclipse Temurin) into `tools/jdk`
+* **Android SDK command line tools** into `tools/cmdline-tools/latest`
+* **Android SDK** platform 35, build-tools 35.0.0 and platform-tools
+* the **Gradle 8.11.1** distribution the wrapper asks for
+
+The script writes `local.properties` and `tools/toolchain.env` /
+`tools/toolchain.cmd`, which the build scripts read. Re-running it is cheap and
+idempotent.
+
+#### Already have the tools?
+
+Then almost nothing is downloaded. Before fetching anything the script looks for
+what is already installed, and only fills the gaps:
+
+* **JDK** — `tools/jdk`, then `JAVA_HOME`, then the usual system locations
+  (`/usr/lib/jvm/...`, `/Library/Java/JavaVirtualMachines/...`, SDKMAN). Any
+  JDK between 17 and 23 is accepted as is.
+* **Android SDK** — `tools/android-sdk`, then `ANDROID_SDK_ROOT`,
+  `ANDROID_HOME`, `sdk.dir` from an existing `local.properties`, then
+  `~/Android/Sdk`, `~/Library/Android/sdk` or `%LOCALAPPDATA%\Android\Sdk`.
+  An SDK found this way is used where it is; only the missing packages
+  (platform 35, build-tools 35.0.0, platform-tools) are installed into it, and
+  nothing else about it is touched. A self-contained SDK under
+  `tools/android-sdk` is created only when no SDK exists anywhere.
+
+If your tools live somewhere unusual — an Android Studio SDK outside the default
+path, say — point at them directly:
 
 ```bash
-./gradlew.bat assembleDebug
+./download-tools.sh --jdk /opt/jdk-17 --sdk /opt/android-sdk
 ```
 
-- **minSdk 21** (Android 5.0), targetSdk 35, Kotlin, self-drawn Views.
-- No `java.time`, so API 21 needs no core-library desugaring.
-- One dependency: `androidx.core-ktx`. The HTTP/WebSocket server is hand-rolled
-  and the web UI is plain ES5 and flexbox, so an un-updated Android 5 WebView
-  renders it.
-
-`local.properties` (gitignored) points at your SDK:
-
-```properties
-sdk.dir=C:/path/to/Android/Sdk
+```cmd
+download-tools.cmd --jdk C:\tools\jdk-17 --sdk C:\tools\android-sdk
 ```
 
-`deploy.sh` builds, installs and launches in one go; `DEVICE=<serial>` picks the
-target.
+With a complete toolchain already in place the script does nothing but confirm
+it and write the two config files — and you can skip it entirely if
+`local.properties` already points at your SDK and `JAVA_HOME` is a JDK 17-23.
+
+### build.sh / build.cmd
+
+```
+build.sh [debug|release] [--install] [--clean]
+```
+
+| | |
+| --- | --- |
+| `debug` (default) | Signed with the local debug key — installable as is. |
+| `release` | Optimised, but **unsigned**. |
+| `--install` | `adb install -r` the debug APK onto the connected device. |
+| `--clean` | Wipe previous build output first. |
+
+The APK is copied to `out/ipixel-clock-debug.apk` or
+`out/ipixel-clock-release-unsigned.apk`; Gradle's own copies stay under
+`app/build/outputs/apk/`.
+
+Installing by hand:
+
+```bash
+adb install -r out/ipixel-clock-debug.apk
+```
+
+### Signing a release build
+
+Release builds have no signing config, so they come out unsigned. To sign one
+with your own key:
+
+```bash
+tools/android-sdk/build-tools/35.0.0/apksigner sign \
+    --ks my-release.jks --out ipixel-clock.apk \
+    out/ipixel-clock-release-unsigned.apk
+```
+
+(Use your SDK's `build-tools/35.0.0/apksigner` if the toolchain script reused an
+existing SDK.)
+
+A debug-signed APK and a release-signed one have different signatures, so the
+second will not install over the first — uninstall before switching.
+
+### deploy.sh — the development loop
+
+Build, install and launch over Wi-Fi in one command, plus the app's logcat:
+
+```bash
+./deploy.sh          # build + install + launch
+```
+
+```bash
+./deploy.sh log      # ...then follow IPixelHub, ClockService and the rest
+```
+
+`DEVICE=<serial-or-ip:port>` picks the target and `ADB=<path>` the adb binary;
+the defaults are the tablet this was developed against. It builds through
+`build.sh`, so it needs no toolchain configuration of its own.
+
+### Gradle directly
+
+The wrapper works on its own once the toolchain is in place:
+
+```bash
+./gradlew assembleDebug
+```
+
+Gradle 8.11 runs on JDK 17 through 23 and AGP 8.7 needs at least 17, so keep
+`JAVA_HOME` inside that range — a newer JDK (24+) will refuse to start the
+daemon. The build scripts pass the right one in explicitly, which is why they
+work even when the shell's default `java` is too new.
 
 ---
 
@@ -235,6 +373,10 @@ bg/                 Background engine + the generated effects
 data/               SunTimes, WeatherService, DataHub
 web/                WebServer (HTTP + WS), Auth, Api + Schema
 assets/web/         index.html, app.css, app.js, login.html, locked.html
+
+download-tools.sh/.cmd  Toolchain fetcher
+build.sh/.cmd           Build + APK
+deploy.sh               Build + install + launch + logcat, over Wi-Fi
 ```
 
 The web UI is **data-driven from `/api/schema`**: adding a font, transition or
